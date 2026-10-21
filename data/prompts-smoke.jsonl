@@ -1,0 +1,2 @@
+{"prompt_id": 0, "task": "code", "prompt": "Write a Python function that checks if a string is a palindrome."}
+{"prompt_id": 1, "task": "chat_pt", "prompt": "Explique em duas frases o que é um modelo Mixture of Experts."}

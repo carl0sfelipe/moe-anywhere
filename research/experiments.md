@@ -13,7 +13,12 @@ Status: done (2026-10-21)
 ## E1
 
 Routing traces: record (layer, token, top-k experts) and publish as an open dataset.
-Status: planned
+Status: in progress
+
+- Hook: `tools/trace_hook/moe-trace` (llama.cpp eval callback on `ffn_moe_topk-N` and `ffn_moe_weights_norm-N`). Writes TSV: prompt_id, task, token_pos, phase, layer, experts, weights.
+- Smoke run (2026-10-21, Sage-A1.5 Q4_K_M, RTX 5050, `-ngl 99 -ot exps=CPU`, 2 prompts, 32 generated tokens each): 4278 rows, 0 invalid (8 distinct experts in [0, 256), weights sum to 1).
+- Prefill caveat: the last layer only computes the output row, so prefill tokens other than the last have 39 of 40 layers.
+- First observation: on real traces, expert IDs at layer L and L+1 overlap at chance (0.235 vs 64/256 = 0.25), because each layer has its own experts. Copying IDs across layers predicts nothing; cross-layer predictors need the hidden state or learned per-layer mappings.
 
 ## E2
 
