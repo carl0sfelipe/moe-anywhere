@@ -7,7 +7,8 @@
 //   prompt_id  task  token_pos  phase(prefill|decode)  layer  e0,e1,..  w0,w1,..
 //
 // --hidden-out FILE also dumps the residual stream after each layer (`l_out-N`) for
-// decode tokens, capped by --hidden-max-tokens (default 3000). Record layout, little-endian:
+// decode tokens, capped by --hidden-max-tokens (default 3000). --hidden-tensor NAME dumps
+// `NAME-N` instead, e.g. attn_residual (the residual before layer N's MoE). Record layout, little-endian:
 //   int32 prompt_id, int32 token_pos, int32 layer, int32 n_embd, then n_embd x float16.
 #include "arg.h"
 #include "common.h"
@@ -32,12 +33,13 @@ struct layer_capture {
     std::vector<float>   weights;  // [n_tokens * k]
     int64_t k = 0, n_tokens = 0;
     bool has_norm = false;
-    std::vector<float> hidden;  // l_out for a single decode token
+    std::vector<float> hidden;  // hidden tensor for a single decode token
 };
 
 struct trace_state {
     std::map<int, layer_capture> layers;
     bool want_hidden = false;
+    std::string hidden_prefix = "l_out-";
 };
 
 static int layer_of(const char * name, const char * prefix) {
@@ -74,7 +76,7 @@ static bool cb_eval(ggml_tensor * t, bool ask, void * user_data) {
     int il_topk = layer_of(t->name, "ffn_moe_topk-");
     int il_norm = layer_of(t->name, "ffn_moe_weights_norm-");
     int il_raw  = layer_of(t->name, "ffn_moe_weights-");
-    int il_out  = st->want_hidden ? layer_of(t->name, "l_out-") : -1;
+    int il_out  = st->want_hidden ? layer_of(t->name, st->hidden_prefix.c_str()) : -1;
     if (ask) {
         return il_topk >= 0 || il_norm >= 0 || il_raw >= 0 || il_out >= 0;
     }
@@ -161,7 +163,7 @@ static void flush(trace_state & st, FILE * out, int prompt_id, const std::string
 int main(int argc, char ** argv) {
     std::setlocale(LC_NUMERIC, "C");
 
-    std::string prompts_path, out_path, hidden_path;
+    std::string prompts_path, out_path, hidden_path, hidden_tensor = "l_out";
     int n_gen = 256;
     long hidden_max_tokens = 3000;
     bool chatml = true;
@@ -176,6 +178,8 @@ int main(int argc, char ** argv) {
             n_gen = atoi(argv[++i]);
         } else if (a == "--hidden-out" && i + 1 < argc) {
             hidden_path = argv[++i];
+        } else if (a == "--hidden-tensor" && i + 1 < argc) {
+            hidden_tensor = argv[++i];
         } else if (a == "--hidden-max-tokens" && i + 1 < argc) {
             hidden_max_tokens = atol(argv[++i]);
         } else if (a == "--raw") {
@@ -185,7 +189,7 @@ int main(int argc, char ** argv) {
         }
     }
     if (prompts_path.empty() || out_path.empty()) {
-        fprintf(stderr, "usage: %s --prompts prompts.jsonl --out trace.tsv [-n 256] [--raw] [llama.cpp args]\n", argv[0]);
+        fprintf(stderr, "usage: %s --prompts prompts.jsonl --out trace.tsv [-n 256] [--raw] [--hidden-out FILE [--hidden-tensor l_out] [--hidden-max-tokens N]] [llama.cpp args]\n", argv[0]);
         return 1;
     }
 
@@ -203,6 +207,7 @@ int main(int argc, char ** argv) {
     if (!hidden_path.empty()) {
         hout = fopen(hidden_path.c_str(), "wb");
         st.want_hidden = true;
+        st.hidden_prefix = hidden_tensor + "-";
     }
     params.cb_eval = cb_eval;
     params.cb_eval_user_data = &st;

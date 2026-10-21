@@ -1,5 +1,8 @@
 """E3a: simulate a per-layer VRAM expert cache (hits on GPU, misses on CPU) and predict tok/s.
 
+Superseded by timeline.py (E3c): this token-level model lets copies overlap compute perfectly, which
+llama.cpp's cache does not do. Kept to reproduce the E3a table.
+
 Time model per decoded token, fitted on the RTX 5050 with llama-bench (see research/experiments.md):
   t = t_fixed + misses * t_cpu_expert + max(0, copies * t_copy - (t_fixed + misses * t_cpu_expert))
 Cache fills (copies, RAM -> VRAM over PCIe) overlap with compute; only the excess stalls.
@@ -23,7 +26,7 @@ from moe_anywhere.pregate import load_routers, read_experts, read_hidden, router
 # Fitted on RTX 5050 8 GB (PCIe 4.0 x8) + i9-12900HK, Sage-A1.5 Q4_K_M, llama.cpp 0a1ef30.
 T_FIXED_MS = 10.6        # everything except routed experts, with experts resident on GPU
 T_CPU_EXPERT_MS = 0.0413  # 13.2 ms of CPU expert work / (40 layers x 8 experts)
-T_COPY_MS = 0.17          # 2.04 MB per expert over ~12 GB/s
+T_COPY_MS = 0.17          # ~1.9 MB per expert over ~12 GB/s (E3b measured 0.098 ms/MiB, i.e. 0.19 ms)
 
 
 class LayerCache:
