@@ -27,7 +27,26 @@ Status: in progress
 ## E2
 
 Predictors offline on CPU: random, LRU, frequency, previous-layer copy, pre-gating; metric recall@k at horizons 1/2/3.
-Status: planned
+Status: first baselines done (2026-10-21), pre-gating pending
+
+On the E1 trace (19,018 tokens x 40 layers, k=8): `python -m moe_anywhere.eval_predictors traces/e1-sage-a1.5.parquet --k 8 --cache-sizes 16,32,64,128,192` (2 min on CPU).
+
+| predictor | recall@1 | recall@2 | recall@3 |
+|---|---|---|---|
+| random | 0.031 | 0.031 | 0.031 |
+| frequency | 0.140 | 0.141 | 0.142 |
+| lru | 0.364 | 0.370 | 0.373 |
+| prev_token | 0.364 | 0.370 | 0.373 |
+
+LRU and prev_token coincide at k=8: the 8 most recent experts of a layer are the previous token's. Running frequency trails because popularity shifts by task.
+
+LRU cache per layer, hit rate by experts kept per layer (of 256):
+
+| experts/layer | 16 | 32 | 64 | 128 | 192 |
+|---|---|---|---|---|---|
+| hit rate | 0.469 | 0.623 | 0.785 | 0.928 | 0.982 |
+
+Rough VRAM cost (one routed expert = 3 x 2048 x 512 weights, about 1.8 MB at Q4_K's ~4.5 bpw): 64 experts/layer x 40 layers is about 4.5 GB and gives 78.5% hits, which fits next to the 2.1 GB the RTX 5050 already uses in E0. 128/layer (about 9 GB, 92.8%) fits a 24 GB RTX 3090.
 
 ## E3
 
