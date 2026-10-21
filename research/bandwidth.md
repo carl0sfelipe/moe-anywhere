@@ -2,7 +2,15 @@
 
 ## Tiers
 
-<!-- presets table (S5) -->
+| preset | GB/s |
+|---|---|
+| pcie3_x4 | 3.5 |
+| pcie3_x16 | 14.0 |
+| ddr4_dual | 35.0 |
+| ddr4_quad | 60.0 |
+| nvme_gen3 | 3.0 |
+| gbe1 | 0.117 |
+| ib40 | 4.0 |
 
 ## Method
 
