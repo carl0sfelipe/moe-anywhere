@@ -221,3 +221,99 @@ Replaying the E3b trace (`e3-bench.tsv` from the dataset) through `timeline.py` 
 | hybrid, simulated / measured | 55.7 / 53.3 | 59.0 / 57.7 | 64.1 / 61.5 |
 
 So the timeline transfers to a new machine once it has the machine's two bandwidths. The hybrid is still 2-5% optimistic, as in E3d, because its hit rate runs high (0.60 against 0.565 at 2048 MiB). The break-even rule (hit rate >= 1 - PCIe_BW/RAM_BW) needs effective bandwidths measured with llama.cpp, not DIMM specs: here the effective CPU-expert rate barely moved while the effective PCIe rate rose 28%.
+
+## E4
+
+Execution matrix for the next wave of experiments (in priority order).
+Status: planned
+
+### E4.1 — overlap CPU and GPU halves in the hybrid layer
+
+| field | value |
+|---|---|
+| goal | Remove/reduce the per-layer fixed cost of the hybrid CPU chain (about 0.09 ms in E3d) without accuracy regressions. |
+| command | `tools/bench_decode.sh MODEL.gguf 3 "up5120|--moe-cache-mib 5120 --load-mode none" "hyb5120|--moe-cache-mib 5120 --moe-cache-hybrid --load-mode none"` + `llama-perplexity -ub 1 --kl-divergence` check as in `tools/lab_run.sh`. |
+| primary metric | decode tok/s and fitted per-layer fixed overhead (`bench-hop.md` + timeline fit against measured tok/s). |
+| success criterion | hybrid 5120 MiB improves over current E3d/E3e baseline while KL divergence stays in the same range as upstream cache. |
+| artifacts | decode matrix TSV/logs, KL output, fit notes in `research/experiments.md`. |
+
+### E4.2 — hybrid with ubatch > 1 token
+
+| field | value |
+|---|---|
+| goal | Enable multi-token hybrid ubatches for speculative decoding workloads. |
+| command | `tools/bench_decode.sh MODEL.gguf 3 "hyb5120-ub1|--moe-cache-mib 5120 --moe-cache-hybrid --load-mode none -ub 1" "hyb5120-ub2|... -ub 2" "hyb5120-ub4|... -ub 4" "hyb5120-ub8|... -ub 8"` |
+| primary metric | decode tok/s vs ubatch size; correctness via `llama-perplexity -ub 1 --kl-divergence` reference comparison. |
+| success criterion | ubatch > 1 runs are stable (no CUDA illegal access), preserve quality, and beat ubatch 1 throughput on decode. |
+| artifacts | per-ubatch decode/pre-fill table and error log summary (if any). |
+
+### E4.3 — uploader parameter sweep
+
+| field | value |
+|---|---|
+| goal | Find per-machine best uploader pacing (chunk size, in-flight limit, backlog cap). |
+| command | `tools/bench_decode.sh` sweep over hybrid builds/configs; plus `python -m moe_anywhere.timeline MODEL.gguf TRACE.tsv --hidden TRACE.hidden --miss-path cpu --cache-mib 2048,3072,4096,5120 --budget 0,8 --max-backlog-ms 0.1,0.3,0.6,1.0`. |
+| primary metric | decode tok/s and hit rate under each queue policy. |
+| success criterion | identify one setting that dominates baseline pacing at both 2048 and 5120 MiB without hurting prefill. |
+| artifacts | sweep table (tok/s, hit rate, copies/token, prefill tok/s) and chosen default. |
+
+### E4.4 — host recalibration for the timeline model
+
+| field | value |
+|---|---|
+| goal | Re-fit machine-specific effective CPU-expert and PCIe upload costs before trusting timeline predictions. |
+| command | `tools/lab_run.sh` on the new host + `results/*/bench-hop.md` analysis + `python -m moe_anywhere.timeline MODEL.gguf TRACE.tsv --hidden TRACE.hidden --cache-mib 2048,5120 --ms-per-mib X`. |
+| primary metric | upstream/hybrid simulation error against measured tok/s at 2048/5120 MiB. |
+| success criterion | upstream replay error <= 2% and hybrid replay error <= 5% on the calibration machine. |
+| artifacts | calibrated constants and replay table added to `research/experiments.md`. |
+
+### E4.5 — full cache size curves (2-6 GiB)
+
+| field | value |
+|---|---|
+| goal | Map break-even and optimal cache region for upstream and hybrid designs. |
+| command | `tools/bench_decode.sh MODEL.gguf 3 "up2048|--moe-cache-mib 2048 --load-mode none" "up3072|--moe-cache-mib 3072 --load-mode none" "up4096|--moe-cache-mib 4096 --load-mode none" "up5120|--moe-cache-mib 5120 --load-mode none" "up6144|--moe-cache-mib 6144 --load-mode none" "hyb2048|--moe-cache-mib 2048 --moe-cache-hybrid --load-mode none" "hyb3072|--moe-cache-mib 3072 --moe-cache-hybrid --load-mode none" "hyb4096|--moe-cache-mib 4096 --moe-cache-hybrid --load-mode none" "hyb5120|--moe-cache-mib 5120 --moe-cache-hybrid --load-mode none" "hyb6144|--moe-cache-mib 6144 --moe-cache-hybrid --load-mode none"` |
+| primary metric | decode tok/s and prefill tok/s as a function of cache MiB. |
+| success criterion | clear break-even point and selected operating region for each design on each machine. |
+| artifacts | curve table in `research/experiments.md` + raw `summary.tsv` in `results/`. |
+
+### E4.6 — hybrid admission policies beyond pre-gating
+
+| field | value |
+|---|---|
+| goal | Compare LRU-only admission, frequency/static admissions, and simple hybrids to reduce PCIe traffic. |
+| command | `python -m moe_anywhere.eval_predictors TRACE.parquet --k 8 --cache-sizes 16,32,64,128,192` + `python -m moe_anywhere.timeline MODEL.gguf TRACE.tsv --hidden TRACE.hidden --miss-path cpu --cache-mib 2048,5120 --budget 0,8,16 --horizon 1`. |
+| primary metric | tok/s vs copies/token at matched cache size. |
+| success criterion | any policy that improves tok/s or reduces copies/token at equal/better hit rate versus current hybrid+LRU baseline. |
+| artifacts | policy comparison table and chosen policy rationale. |
+
+### E4.7 — robustness across prompt types
+
+| field | value |
+|---|---|
+| goal | Verify that cache/hybrid gains hold across coding, math, chat, and long-context prompts. |
+| command | `tools/trace_hook/moe-trace` + `tools/bench_decode.sh` per prompt set (reuse `data/prompts-e1.jsonl` task buckets; add long-context set with pinned `-c 8192 -fit off`). |
+| primary metric | tok/s deltas and hit-rate deltas by task bucket. |
+| success criterion | hybrid remains faster than no-cache and upstream in every major bucket, or document exact failure buckets. |
+| artifacts | per-task benchmark table and routing summary in `research/experiments.md`. |
+
+### E4.8 — DeepSeek-V4.1-Flash on 8x3090 cluster
+
+| field | value |
+|---|---|
+| goal | Repeat the full protocol on the 8x3090 environment and re-check the CPU-vs-PCIe balance under PCIe 3.0 risers. |
+| command | same protocol as `tools/lab_run.sh` adapted to the cluster environment from `carl0sfelipe/rig3d` docs (system info, bench-hop, decode matrix, timeline replay). |
+| primary metric | no-cache vs upstream vs hybrid tok/s and replay error of the calibrated timeline. |
+| success criterion | calibrated model explains cluster results and identifies whether pre-gating or miss-path changes dominate there. |
+| artifacts | run folder in `results/`, summary table in `research/experiments.md`, and updated guidance in `HANDOFF.md`. |
+
+### Batch execution order (recommended)
+
+1. E4.4 (recalibration on the target machine)
+2. E4.5 (cache curves)
+3. E4.1 (CPU/GPU overlap optimization)
+4. E4.3 (uploader sweep)
+5. E4.6 (admission policy study)
+6. E4.7 (task robustness)
+7. E4.2 (multi-token hybrid ubatches)
+8. E4.8 (cluster transfer)
