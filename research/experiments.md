@@ -190,3 +190,34 @@ Correctness: `llama-perplexity -ub 1` with KL divergence against the no-cache lo
 - It is short of the 72 tok/s E3c predicted. Fitting the runs gives a fixed cost of about 0.09 ms per layer for the extra CPU chain (split launch, two activation copies, CPU threadpool), against the 0.025 ms hop assumed. One CPU expert costs about 0.045 ms. With those values the timeline predicts 60 tok/s, and its hit rate is higher than measured (0.83 vs 0.78) because the real queue cap drops more admissions.
 - What is left to gain is that per-layer fixed cost, not prediction. One option is to run the CPU half concurrently with the GPU half; today they are serialized by the activation copy on the compute stream. Another is to skip the CPU chain when a layer has no misses.
 
+
+### E3e — same RTX 5050 in a Ryzen 7 7800X3D desktop (2026-10-21)
+
+`tools/lab_run.sh` with `KLD=1` on a second machine: Ryzen 7 7800X3D (8 cores, one CCD), 30 GB DDR5 (speed not recorded: dmidecode was missing), the same RTX 5050 8 GB in a PCIe 4.0 x8 slot (x8 confirmed under load), driver 615.78. Raw output is in `results/omarchy-white-20261021-1510/`.
+
+Decode matrix (`tools/bench_decode.sh`, `--load-mode none`, 3 interleaved repeats, mean; spread under 4%):
+
+| config | decode tok/s | E3c timeline prediction for this machine | first machine (E3d) | prefill tok/s (14 tok) |
+|---|---|---|---|---|
+| no cache | 48.4 | 52.5 | 45.5 | 109 |
+| upstream 2048 MiB | 35.6 | - | 30.4 | 43 |
+| upstream 5120 MiB | 56.7 | 46.7 | 50.9 | 42 |
+| hybrid 2048 MiB | 53.3 | 55.9 | 44.2 | 107 |
+| hybrid 3072 MiB | 57.7 | - | 50.7 | 112 |
+| **hybrid 5120 MiB** | **61.5** | 63.0 | 55.1 | 113 |
+
+KL divergence against experts-on-CPU (`-ub 1`, 1,024 tokens): 0.0053 for upstream 5120 MiB and 0.0057 for the hybrid, the same picture as E3d.
+
+The hypothesis is wrong. Fast RAM was supposed to make experts-on-CPU beat upstream's cache and shrink the hybrid's lead to about 20%. Instead upstream at 5120 MiB beats no cache by 17%, and the hybrid is 27% over no cache, 8% over upstream at 5120 MiB and 50% over upstream at 2048 MiB. Both assumptions behind the prediction failed:
+
+- **CPU experts got only a little faster.** No cache is +6% over the first machine, not +25%. From `bench-hop.md`, one hop costs about 0.029 ms (attn_norm 49.37 to 46.25 tok/s, post_attention_norm to 44.34) and moving layers 0-7 to the GPU saves 0.285 ms per layer, so one CPU expert costs about 0.032 ms (first machine: 0.038). A likely cause is that a single-CCD Zen 4 reads RAM through one Infinity Fabric link, which caps it near 64 GB/s whatever the DIMMs do. Threads peak at 8 (49.5 tok/s); 16 is 4% slower.
+- **Uploads got cheaper.** The two upstream points fit t = 10.25 ms + 0.076 ms per uploaded MiB (97 and 234 MiB per token, the same as E3b), against 10.9 + 0.098 on the dock. That is about 13 GB/s against 10 GB/s on the same x8 link, so the dock or the Intel root complex was costing about a fifth of the PCIe bandwidth.
+
+Replaying the E3b trace (`e3-bench.tsv` from the dataset) through `timeline.py` with T_FIXED 10.25, MS_PER_MIB 0.076, a 0.09 ms CPU-chain cost per layer (E3d) and 0.032 ms per CPU expert gives:
+
+| cache MiB | 2048 | 3072 | 5120 |
+|---|---|---|---|
+| upstream, simulated / measured | 35.7 / 35.6 | 42.1 / - | 55.8 / 56.7 |
+| hybrid, simulated / measured | 55.7 / 53.3 | 59.0 / 57.7 | 64.1 / 61.5 |
+
+So the timeline transfers to a new machine once it has the machine's two bandwidths. The hybrid is still 2-5% optimistic, as in E3d, because its hit rate runs high (0.60 against 0.565 at 2048 MiB). The break-even rule (hit rate >= 1 - PCIe_BW/RAM_BW) needs effective bandwidths measured with llama.cpp, not DIMM specs: here the effective CPU-expert rate barely moved while the effective PCIe rate rose 28%.

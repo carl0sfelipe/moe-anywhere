@@ -31,18 +31,11 @@ State of the lab for whoever continues it, human or agent, with no prior context
 - llama-bench has no `--moe-cache-mib`; use `tools/bench_decode.sh`, which runs llama-completion.
 - Run crash-prone experiments with `ulimit -c 0`. Every abort leaves a 170 MB core dump and a desktop notification.
 
-## Next step in progress: same RTX 5050 in a DDR5-6000 dual-channel machine
+## Done: same RTX 5050 in a Ryzen 7 7800X3D desktop (E3e)
 
-Run `bash tools/lab_run.sh`, which collects system info, builds llama.cpp 0a1ef30 with the patch, downloads the model if missing, runs llama-bench for threads, hop cost and per-layer cost, runs the decode matrix, and with `KLD=1` the KL check. Results go to `results/<host>-<date>/`; commit them.
+`tools/lab_run.sh` ran on `omarchy-white` (results in `results/omarchy-white-20261021-1510/`, write-up in experiments.md E3e). Hybrid 5120 MiB: 61.5 tok/s against 48.4 without cache and 56.7 for upstream. The fast-RAM hypothesis was wrong: CPU experts got only 16% cheaper (0.032 ms) while uploads got 22% cheaper (0.076 ms/MiB). With those two numbers the timeline replays within 2% for upstream and 2-5% optimistic for the hybrid. Before trusting a prediction on new hardware, measure both effective bandwidths with `bench-hop.md` and two upstream cache sizes.
 
-Timeline prediction to check, assuming about 75 GB/s effective RAM and the same PCIe x8:
-
-| | no cache | upstream 5 GB | hybrid 2 GB | hybrid 5 GB |
-|---|---|---|---|---|
-| first machine (simulated) | 42.1 | 46.7 | 49.5 | 59.1 |
-| DDR5-6000 (simulated) | 52.5 | 46.7 | 55.9 | 63.0 |
-
-Hypothesis: with fast RAM, experts-on-CPU beats upstream's cache, and the hybrid's lead over no cache shrinks from about 40% to about 20%. This is the break-even rule hit rate >= 1 - PCIe_BW/RAM_BW from RFC #28248. If the measurements disagree, recalibrate `T_CPU_EXPERT_MS`, `T_HOP_MS` and `MS_PER_MIB` in `timeline.py` from `bench-hop.md` and the summary.
+Build notes for this machine: CUDA is in `/opt/cuda/bin` (not on PATH by default), and `hf` lives in `~/.venvs/hf`.
 
 After that:
 1. Overlap the CPU and GPU halves of the hybrid layer (the per-layer fixed cost of about 0.09 ms).

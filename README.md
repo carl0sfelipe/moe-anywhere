@@ -32,6 +32,8 @@ Measured on Sage-A1.5 (Qwen3.6-35B-A3B, 256 experts/layer, top-8) with an RTX 50
 | Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + 31 GB RAM | llama.cpp `-ot exps=CPU`, `tools/bench_decode.sh` | 44.7 | 2026-10-21 |
 | Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + 31 GB RAM | + `--moe-cache-mib 5120 --load-mode none` (E3b) | 52.1 | 2026-10-21 |
 | Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + 31 GB RAM | + `--moe-cache-hybrid` (E3d patch) | 55.1 | 2026-10-21 |
+| Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + Ryzen 7 7800X3D, 30 GB DDR5 | `-ot exps=CPU`, `tools/bench_decode.sh` (E3e) | 48.4 | 2026-10-21 |
+| Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + Ryzen 7 7800X3D, 30 GB DDR5 | + `--moe-cache-mib 5120 --moe-cache-hybrid` (E3e) | 61.5 | 2026-10-21 |
 
 Every row will be reproducible and submitted to bestmodel.run.
 
