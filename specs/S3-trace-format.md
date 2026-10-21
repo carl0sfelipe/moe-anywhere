@@ -14,9 +14,11 @@ Criar `moe_anywhere/trace.py` com:
   `weights` np.float16 (N, k), não negativos, soma ≈ 1 por linha.
 - `synth_trace(n_tokens, n_layers, n_experts, k, seed=0, zipf_s=1.1) -> dict`:
   determinístico por `seed` (numpy Generator). Popularidade desigual (Zipf com
-  expoente zipf_s por camada) e correlação entre camadas: para cada token, parte
-  dos experts da camada l+1 é herdada da camada l (ex.: cada expert herdado com
-  prob. 0.5, o resto amostrado pela Zipf sem repetição). `task` = "synthetic",
+  expoente zipf_s, permutação de IDs própria por camada) e correlação TEMPORAL na
+  mesma camada: o token i+1 herda cada expert do token i na mesma camada com
+  prob. 0.5, o resto amostrado pela Zipf sem repetição. NÃO correlacionar IDs entre
+  camadas (cada camada tem seus próprios experts — medido em trace real do
+  Sage-A1.5: overlap L→L+1 = 0.235, igual ao acaso 0.25). `task` = "synthetic",
   `prompt_id` = 0.
 - `write_trace(trace, path)` grava Parquet (experts/weights como listas de tamanho fixo
   ou colunas por posição) e `read_trace(path) -> dict` devolve os mesmos dtypes e shapes.

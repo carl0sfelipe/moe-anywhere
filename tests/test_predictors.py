@@ -7,7 +7,7 @@ import pytest
 
 from moe_anywhere import trace as T
 from moe_anywhere.eval_predictors import cache_hit_rate, evaluate
-from moe_anywhere.predictors import Frequency, LRU, PrevLayerCopy, Random
+from moe_anywhere.predictors import Frequency, LRU, PrevToken, Random
 
 N_TOK, N_LAYERS, N_EXP, K = 300, 6, 64, 4
 
@@ -18,7 +18,7 @@ def synth():
 
 
 def _constant_trace():
-    """Every layer of every token picks experts 0..K-1: copying is perfect."""
+    """Every layer of every token picks experts 0..K-1: repeating the last token is perfect."""
     n = N_TOK * N_LAYERS
     return {
         "prompt_id": np.zeros(n, np.int32),
@@ -30,8 +30,8 @@ def _constant_trace():
     }
 
 
-def test_prev_layer_copy_perfect_on_constant_trace():
-    r = evaluate(_constant_trace(), lambda: PrevLayerCopy(), k=K, horizons=(1, 2, 3))
+def test_prev_token_perfect_on_constant_trace():
+    r = evaluate(_constant_trace(), lambda: PrevToken(), k=K, horizons=(1, 2, 3))
     assert r == {1: pytest.approx(1.0), 2: pytest.approx(1.0), 3: pytest.approx(1.0)}
 
 
@@ -42,7 +42,7 @@ def test_random_is_near_chance(synth):
 
 def test_learned_baselines_beat_random(synth):
     rand = evaluate(synth, lambda: Random(N_EXP, seed=0), k=K, horizons=(1,))[1]
-    for factory in (lambda: Frequency(N_EXP), lambda: LRU(), lambda: PrevLayerCopy()):
+    for factory in (lambda: Frequency(N_EXP), lambda: LRU(), lambda: PrevToken()):
         assert evaluate(synth, factory, k=K, horizons=(1,))[1] > rand
 
 
@@ -69,6 +69,6 @@ def test_cli(tmp_path, synth):
         [sys.executable, "-m", "moe_anywhere.eval_predictors", str(p), "--k", str(K)],
         capture_output=True, text=True, check=True,
     ).stdout
-    for name in ("random", "frequency", "lru", "prev_layer_copy"):
+    for name in ("random", "frequency", "lru", "prev_token"):
         assert name in out
     assert "recall@" in out and "hit_rate" in out

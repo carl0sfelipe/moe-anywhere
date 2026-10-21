@@ -44,14 +44,24 @@ def test_skewed_popularity():
     assert top10 / counts.sum() > 0.25  # uniform would be ~0.10
 
 
-def test_cross_layer_correlation():
-    t = _synth()
-    e = t["experts"].reshape(N_TOK, N_LAYERS, K)
+def test_temporal_correlation_same_layer():
+    """Real traces: consecutive tokens reuse experts within a layer."""
+    e = _synth()["experts"].reshape(N_TOK, N_LAYERS, K)
+    overlap = np.mean([
+        len(set(e[i, l]) & set(e[i + 1, l]))
+        for i in range(N_TOK - 1) for l in range(N_LAYERS)
+    ])
+    assert overlap > 2 * (K * K / N_EXP)  # random expectation is K*K/N_EXP
+
+
+def test_no_cross_layer_id_correlation():
+    """Each layer has its own experts: expert IDs at L and L+1 are unrelated."""
+    e = _synth()["experts"].reshape(N_TOK, N_LAYERS, K)
     overlap = np.mean([
         len(set(e[i, l]) & set(e[i, l + 1]))
         for i in range(N_TOK) for l in range(N_LAYERS - 1)
     ])
-    assert overlap > 2 * (K * K / N_EXP)  # random expectation is K*K/N_EXP
+    assert overlap < 2 * (K * K / N_EXP)
 
 
 def test_parquet_roundtrip(tmp_path):
