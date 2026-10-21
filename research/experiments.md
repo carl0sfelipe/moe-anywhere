@@ -48,6 +48,20 @@ LRU cache per layer, hit rate by experts kept per layer (of 256):
 
 Rough VRAM cost: one routed expert is gate + up (2 x 2048 x 512, Q4_K ~4.5 bpw) plus down (512 x 2048, Q6_K ~6.56 bpw), about 2.0 MB. 64 experts/layer x 40 layers is about 5.2 GB and gives 78.5% hits, which fits next to the 2.1 GB the RTX 5050 already uses in E0. 128/layer (about 10.5 GB, 92.8%) fits a 24 GB RTX 3090.
 
+### Pre-gating (2026-10-21)
+
+Predict layer L+h's experts by applying layer L+h's router (`ffn_gate_inp`) to layer L's output residual (`l_out-L`), RMS-normalized with layer L+h's `post_attention_norm`. Data: `data/prompts-e2-hidden.jsonl` (2 prompts per task, 20 total), 5,120 decode tokens with hidden states (`moe-trace --hidden-out`, 842 MB). Command: `python -m moe_anywhere.pregate Sage-A1.5-Q4_K_M.gguf traces/e2-hidden.tsv traces/e2.hidden --budgets 8,16,32` (41 s).
+
+Recall of the 8 real experts when prefetching `budget` candidates:
+
+| budget | L+1 | L+2 | L+3 |
+|---|---|---|---|
+| 8 | 0.824 | 0.736 | 0.685 |
+| 16 | 0.959 | 0.898 | 0.854 |
+| 32 | 0.988 | 0.959 | 0.935 |
+
+Against LRU/prev_token (0.364 at budget 8), pre-gating is 2.3x better with the same budget. Prefetching 16 experts one layer ahead covers 96% of what the next layer uses; two layers ahead, 32 candidates still cover 96%, which leaves a whole layer of compute to hide the copy.
+
 ## E3
 
 Online VRAM expert cache + async prefetch vs E0.
