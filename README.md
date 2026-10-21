@@ -18,8 +18,9 @@ moe-anywhere is sponsored by [bestmodel.run](https://bestmodel.run) — see what
 
 | Model | Quant | Hardware | Technique | tok/s | Date |
 |---|---|---|---|---|---|
+| Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + 31 GB RAM | llama.cpp `-ot exps=CPU` (E0 baseline) | 41.05 | 2026-10-21 |
 
-No results yet. Every row will be reproducible and submitted to bestmodel.run.
+Every row will be reproducible and submitted to bestmodel.run.
 
 ## Roadmap
 
