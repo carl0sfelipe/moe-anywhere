@@ -5,10 +5,15 @@
 // prompts.jsonl: one {"prompt_id": int, "task": str, "prompt": str} per line.
 // Output TSV, one row per (token, layer):
 //   prompt_id  task  token_pos  phase(prefill|decode)  layer  e0,e1,..  w0,w1,..
+//
+// --hidden-out FILE also dumps the residual stream after each layer (`l_out-N`) for
+// decode tokens, capped by --hidden-max-tokens (default 3000). Record layout, little-endian:
+//   int32 prompt_id, int32 token_pos, int32 layer, int32 n_embd, then n_embd x float16.
 #include "arg.h"
 #include "common.h"
 #include "log.h"
 #include "llama.h"
+#include "ggml.h"
 #include "ggml-backend.h"
 
 #include <nlohmann/json.hpp>
@@ -27,10 +32,12 @@ struct layer_capture {
     std::vector<float>   weights;  // [n_tokens * k]
     int64_t k = 0, n_tokens = 0;
     bool has_norm = false;
+    std::vector<float> hidden;  // l_out for a single decode token
 };
 
 struct trace_state {
     std::map<int, layer_capture> layers;
+    bool want_hidden = false;
 };
 
 static int layer_of(const char * name, const char * prefix) {
@@ -67,8 +74,17 @@ static bool cb_eval(ggml_tensor * t, bool ask, void * user_data) {
     int il_topk = layer_of(t->name, "ffn_moe_topk-");
     int il_norm = layer_of(t->name, "ffn_moe_weights_norm-");
     int il_raw  = layer_of(t->name, "ffn_moe_weights-");
+    int il_out  = st->want_hidden ? layer_of(t->name, "l_out-") : -1;
     if (ask) {
-        return il_topk >= 0 || il_norm >= 0 || il_raw >= 0;
+        return il_topk >= 0 || il_norm >= 0 || il_raw >= 0 || il_out >= 0;
+    }
+    if (il_out >= 0) {
+        if (t->ne[1] == 1 && t->type == GGML_TYPE_F32 && ggml_is_contiguous(t) && !strstr(t->name, "(")) {
+            auto & c = st->layers[il_out];
+            c.hidden.resize(t->ne[0]);
+            copy_tensor(t, c.hidden.data(), c.hidden.size() * sizeof(float));
+        }
+        return true;
     }
     if (il_topk >= 0) {
         if (t->ne[2] != 1 || strstr(t->name, "(")) {
@@ -95,6 +111,19 @@ static bool cb_eval(ggml_tensor * t, bool ask, void * user_data) {
     return true;
 }
 
+static void write_hidden(trace_state & st, FILE * hout, int prompt_id, int pos) {
+    for (auto & [il, c] : st.layers) {
+        if (c.hidden.empty()) {
+            continue;
+        }
+        int32_t head[4] = {prompt_id, pos, il, (int32_t) c.hidden.size()};
+        fwrite(head, sizeof(head), 1, hout);
+        std::vector<ggml_fp16_t> h(c.hidden.size());
+        ggml_fp32_to_fp16_row(c.hidden.data(), h.data(), (int64_t) h.size());
+        fwrite(h.data(), sizeof(ggml_fp16_t), h.size(), hout);
+    }
+}
+
 static void flush(trace_state & st, FILE * out, int prompt_id, const std::string & task, int pos0, const char * phase) {
     if (st.layers.empty()) {
         return;
@@ -103,11 +132,15 @@ static void flush(trace_state & st, FILE * out, int prompt_id, const std::string
     for (auto & [il, c] : st.layers) {
         n_tokens = std::max(n_tokens, c.n_tokens);
     }
+    if (n_tokens == 0) {
+        st.layers.clear();
+        return;
+    }
     for (int64_t i = 0; i < n_tokens; ++i) {
         for (auto & [il, c] : st.layers) {
             // the last layer only computes output rows (the batch's last token in prefill)
             int64_t r = i - (n_tokens - c.n_tokens);
-            if (r < 0) {
+            if (c.experts.empty() || r < 0) {
                 continue;
             }
             fprintf(out, "%d\t%s\t%lld\t%s\t%d\t", prompt_id, task.c_str(), (long long) (pos0 + i), phase, il);
@@ -128,8 +161,9 @@ static void flush(trace_state & st, FILE * out, int prompt_id, const std::string
 int main(int argc, char ** argv) {
     std::setlocale(LC_NUMERIC, "C");
 
-    std::string prompts_path, out_path;
+    std::string prompts_path, out_path, hidden_path;
     int n_gen = 256;
+    long hidden_max_tokens = 3000;
     bool chatml = true;
     std::vector<char *> rest = {argv[0]};
     for (int i = 1; i < argc; ++i) {
@@ -140,6 +174,10 @@ int main(int argc, char ** argv) {
             out_path = argv[++i];
         } else if (a == "-n" && i + 1 < argc) {
             n_gen = atoi(argv[++i]);
+        } else if (a == "--hidden-out" && i + 1 < argc) {
+            hidden_path = argv[++i];
+        } else if (a == "--hidden-max-tokens" && i + 1 < argc) {
+            hidden_max_tokens = atol(argv[++i]);
         } else if (a == "--raw") {
             chatml = false;
         } else {
@@ -160,6 +198,12 @@ int main(int argc, char ** argv) {
     llama_numa_init(params.numa);
 
     trace_state st;
+    FILE * hout = nullptr;
+    long hidden_tokens = 0;
+    if (!hidden_path.empty()) {
+        hout = fopen(hidden_path.c_str(), "wb");
+        st.want_hidden = true;
+    }
     params.cb_eval = cb_eval;
     params.cb_eval_user_data = &st;
     params.warmup = false;
@@ -217,6 +261,11 @@ int main(int argc, char ** argv) {
                 LOG_ERR("decode failed on prompt %d\n", prompt_id);
                 return 1;
             }
+            if (hout && hidden_tokens < hidden_max_tokens) {
+                write_hidden(st, hout, prompt_id, pos);
+                ++hidden_tokens;
+                st.want_hidden = hidden_tokens < hidden_max_tokens;
+            }
             flush(st, out, prompt_id, task, pos, "decode");
             pos += 1;
         }
@@ -225,6 +274,10 @@ int main(int argc, char ** argv) {
         LOG_INF("prompt %d (%s): %d tokens traced\n", prompt_id, task.c_str(), pos);
     }
     fclose(out);
+    if (hout) {
+        fclose(hout);
+        LOG_INF("hidden states: %ld decode tokens\n", hidden_tokens);
+    }
     llama_sampler_free(smpl);
     llama_backend_free();
     return 0;

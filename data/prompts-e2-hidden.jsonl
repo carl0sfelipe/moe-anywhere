@@ -1,0 +1,20 @@
+{"prompt_id": 0, "task": "code", "prompt": "Write a Python function that merges two sorted lists in linear time."}
+{"prompt_id": 1, "task": "code", "prompt": "Implement an LRU cache class in Python with get and put in O(1)."}
+{"prompt_id": 12, "task": "chat_en", "prompt": "What are the pros and cons of working remotely?"}
+{"prompt_id": 13, "task": "chat_en", "prompt": "Give me five ideas for a birthday party for a ten-year-old."}
+{"prompt_id": 22, "task": "chat_pt", "prompt": "Explique em duas frases o que é um modelo Mixture of Experts."}
+{"prompt_id": 23, "task": "chat_pt", "prompt": "Quais são as vantagens de morar perto do trabalho?"}
+{"prompt_id": 32, "task": "chat_es", "prompt": "¿Cuáles son los beneficios de aprender un segundo idioma?"}
+{"prompt_id": 33, "task": "chat_es", "prompt": "Explica brevemente cómo funciona la fotosíntesis."}
+{"prompt_id": 36, "task": "math", "prompt": "Solve for x: 3x + 7 = 2x - 5. Show the steps."}
+{"prompt_id": 37, "task": "math", "prompt": "What is the derivative of x^3 * sin(x)?"}
+{"prompt_id": 46, "task": "reasoning", "prompt": "If all bloops are razzies and all razzies are lazzies, are all bloops lazzies? Explain."}
+{"prompt_id": 47, "task": "reasoning", "prompt": "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much is the ball?"}
+{"prompt_id": 54, "task": "tools", "prompt": "You have a tool get_weather(city: str). The user asks: 'Should I bring an umbrella in Ciudad del Este tomorrow?' Respond with the JSON tool call you would make."}
+{"prompt_id": 55, "task": "tools", "prompt": "Given tools search(query) and read_url(url), outline the tool calls to find the current price of an RTX 3090."}
+{"prompt_id": 62, "task": "summarize", "prompt": "Summarize in three bullet points: Mixture-of-Experts models route each token to a few expert networks, so only a fraction of parameters is used per token. This makes them cheaper to run than dense models of the same size, but they still need memory for every expert."}
+{"prompt_id": 63, "task": "summarize", "prompt": "Summarize the plot of Romeo and Juliet in two sentences."}
+{"prompt_id": 66, "task": "translate", "prompt": "Translate to Portuguese: 'The quick brown fox jumps over the lazy dog.'"}
+{"prompt_id": 67, "task": "translate", "prompt": "Translate to English: 'Eu gostaria de reservar uma mesa para duas pessoas às oito.'"}
+{"prompt_id": 70, "task": "creative", "prompt": "Write a haiku about a graphics card running hot."}
+{"prompt_id": 71, "task": "creative", "prompt": "Write a four-line poem in Portuguese about the rain."}

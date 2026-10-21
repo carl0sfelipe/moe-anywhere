@@ -46,7 +46,7 @@ LRU cache per layer, hit rate by experts kept per layer (of 256):
 |---|---|---|---|---|---|
 | hit rate | 0.469 | 0.623 | 0.785 | 0.928 | 0.982 |
 
-Rough VRAM cost (one routed expert = 3 x 2048 x 512 weights, about 1.8 MB at Q4_K's ~4.5 bpw): 64 experts/layer x 40 layers is about 4.5 GB and gives 78.5% hits, which fits next to the 2.1 GB the RTX 5050 already uses in E0. 128/layer (about 9 GB, 92.8%) fits a 24 GB RTX 3090.
+Rough VRAM cost: one routed expert is gate + up (2 x 2048 x 512, Q4_K ~4.5 bpw) plus down (512 x 2048, Q6_K ~6.56 bpw), about 2.0 MB. 64 experts/layer x 40 layers is about 5.2 GB and gives 78.5% hits, which fits next to the 2.1 GB the RTX 5050 already uses in E0. 128/layer (about 10.5 GB, 92.8%) fits a 24 GB RTX 3090.
 
 ## E3
 
