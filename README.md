@@ -14,7 +14,8 @@ Measured on Sage-A1.5 (Qwen3.6-35B-A3B, 256 experts/layer, top-8) with an RTX 50
 
 - **Pre-gating works:** running layer L+1's router on layer L's output recalls 82% of the next layer's experts (96% with 16 candidates), against 36% for LRU.
 - **A small cache goes far:** 64 of 256 experts per layer in VRAM (about 4.9 GB) catch 79% of selections with plain LRU.
-- **The miss path matters more than prediction:** llama.cpp's own expert cache (`--moe-cache-mib`) uploads every miss while the GPU waits, so it only beats experts-on-CPU above about 4.5 GB (49.1 vs 44.7 tok/s at 5 GB). A timeline validated against it to within 2% predicts +17% from pre-gating on that design. Running misses on the CPU and filling the cache in the background predicts 72 tok/s (+61%), and implementing that hybrid in llama.cpp is next (E3d).
+- **Hybrid MoE cache in llama.cpp:** experts missing from VRAM run on the CPU while a paced background uploader fills the cache. On the RTX 5050 it reaches 55.1 tok/s against 45.5 without cache and 50.9 for llama.cpp's own `--moe-cache-mib` (which uploads every miss while the GPU waits). At a 2 GB cache it beats upstream by 45% (44.2 vs 30.4), and prefill keeps full speed. The same idea is in the draft llama.cpp PR [#27861](https://github.com/ggml-org/llama.cpp/pull/27861). Our patch is in [patches/](patches/), and a KL-divergence test checks its output against the CPU path (E3d).
+- **Prediction is not the bottleneck here:** a trace-driven timeline, validated against llama.cpp to within 2%, shows that on this PCIe link the miss path and the copy engine decide the speed. Pre-gating adds +17% on upstream's design and under 1 tok/s on the hybrid (E3c).
 - **Open data:** routing traces and hidden states on Hugging Face: [carlosfelipe/moe-anywhere-routing-traces](https://huggingface.co/datasets/carlosfelipe/moe-anywhere-routing-traces).
 
 ## Problem
@@ -30,6 +31,7 @@ Measured on Sage-A1.5 (Qwen3.6-35B-A3B, 256 experts/layer, top-8) with an RTX 50
 | Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + 31 GB RAM | llama.cpp `-ot exps=CPU` (E0 baseline, llama-bench tg128) | 41.05 | 2026-10-21 |
 | Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + 31 GB RAM | llama.cpp `-ot exps=CPU`, `tools/bench_decode.sh` | 44.7 | 2026-10-21 |
 | Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + 31 GB RAM | + `--moe-cache-mib 5120 --load-mode none` (E3b) | 52.1 | 2026-10-21 |
+| Sage-A1.5 (35B-A3B) | Q4_K_M | RTX 5050 8 GB + 31 GB RAM | + `--moe-cache-hybrid` (E3d patch) | 55.1 | 2026-10-21 |
 
 Every row will be reproducible and submitted to bestmodel.run.
 
@@ -39,6 +41,16 @@ Every row will be reproducible and submitted to bestmodel.run.
 - **E1 — routing traces:** record (layer, token, top-k experts) and publish them as an open dataset.
 - **E2 — predictors offline on CPU:** random, LRU, frequency, previous-layer copy, pre-gating; recall@k at horizons 1/2/3.
 - **E3 — online VRAM expert cache + async prefetch,** compared against E0: upstream cache measured (E3b), timeline validated (E3c), hybrid CPU/GPU miss path in llama.cpp (E3d).
+
+## Try the hybrid cache
+
+```
+cd llama.cpp && git checkout 0a1ef30 && git apply ../moe-anywhere/patches/llama.cpp-0a1ef30-moe-cache-hybrid.patch
+cmake -B build -DGGML_CUDA=ON && cmake --build build -j
+build/bin/llama-cli -m MODEL.gguf -ngl 99 -ot exps=CPU --load-mode none --moe-cache-mib 5120 --moe-cache-hybrid
+```
+
+Pick `--moe-cache-mib` from the VRAM left after the dense weights and KV cache, and pin `-c` (llama.cpp otherwise shrinks the context to fit the cache). Please send your tok/s with and without the flag.
 
 ## Contributing
 

@@ -22,8 +22,8 @@ for rep in $(seq 1 "$reps"); do
         dec=$(grep -oP ' eval time .*?\K[0-9.]+(?= tokens per second)' <<<"$log" | tail -1)
         pre=$(grep -oP 'prompt eval time .*?\K[0-9.]+(?= tokens per second)' <<<"$log" | tail -1)
         nctx=$(grep -oP 'n_ctx\s*=\s*\K[0-9]+' <<<"$log" | head -1)
-        hit=$(grep -oP 'ubatch <= 8: .*hit rate = \K[0-9.]+' <<<"$log" || true)
-        up=$(grep -oP 'ubatch <= 8: .*uploaded = \K[0-9.]+' <<<"$log" || true)
+        hit=$(grep -oP '(ubatch <= 8|hybrid): .*hit rate = \K[0-9.]+' <<<"$log" || true)
+        up=$(grep -oP '(ubatch <= 8: .*uploaded|hybrid: .*uploaded in background) = \K[0-9.]+' <<<"$log" || true)
         printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$label" "$rep" "$dec" "$pre" "$nctx" "${hit:--}" "${up:--}"
     done
 done

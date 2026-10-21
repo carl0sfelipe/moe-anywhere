@@ -65,7 +65,7 @@ Against LRU/prev_token (0.364 at budget 8), pre-gating is 2.3x better with the s
 ## E3
 
 Online VRAM expert cache + async prefetch vs E0.
-Status: E3a superseded; E3b (upstream cache measured) and E3c (validated timeline + hybrid design) done 2026-10-21; E3d (hybrid implementation) next
+Status: E3a superseded; E3b (upstream cache measured), E3c (validated timeline + hybrid design) and E3d (hybrid in llama.cpp, 55 tok/s) done 2026-10-21
 
 ### E3a — simulated hybrid cache (superseded by E3c)
 
@@ -159,3 +159,34 @@ Design for E3d (hybrid in `llama_moe_cache`):
 2. Graph: in small ubatches the MoE runs twice and the results are added. The GPU part uses cache slots, with non-resident experts mapped to an all-zero slot. The CPU part uses host experts, with resident experts mapped to -1.
 3. The cache plans without synchronous uploads. It fills slots from a second backend instance (its own stream), from pinned memory, with a host-side backlog cap. A filled expert becomes resident only after its event completes, and the current layer's experts are never evicted.
 4. Pre-gating becomes an optional admission policy on top. On this card it is worth less than 1 tok/s, but on bigger models or slower links the balance must be re-measured.
+
+### E3d — hybrid MoE cache in llama.cpp (2026-10-21)
+
+Patch: `patches/llama.cpp-0a1ef30-moe-cache-hybrid.patch` (10 files, applies to llama.cpp 0a1ef30), flag `--moe-cache-hybrid` on top of `--moe-cache-mib`. Same idea as the draft PR #27861 (see prior-art.md), built independently from the E3c design:
+
+- `ggml-cpu` `mul_mat_id`: a negative id skips the row and writes zeros.
+- Graph: the MoE runs twice and the results are added. The GPU part reads the cache banks, where non-resident experts read zero slots. The CPU part reads the host experts with resident experts set to -1.
+- Cache: at the existing sync point the SLRU only promotes resident experts. Misses run on the CPU and are admitted in the background by an uploader thread on its own CUDA stream. The thread sends 64 KiB chunks, one in flight, while at most 2 MiB are queued. A slot becomes resident once its batch completes.
+
+Two things went wrong on the way, and both matter for anyone building this:
+
+1. **A shared zero slot crashes CUDA.** Mapping every non-resident expert to one zero slot gives duplicate ids within a token, and the batched MMQ kernel needs distinct ids (illegal memory access at a 14-token ubatch, while one token worked because it used MMVQ). This is the same failure documented in #27861. The fix is `n_expert_used` zero slots with distinct ones per token, which limits the hybrid to single-token ubatches. Larger ubatches bypass the cache.
+2. **Background uploads were not in the background.** With one `cudaMemcpyAsync` per expert, each MiB uploaded still cost 0.096 ms per token, the same as upstream's blocking uploads. Small hop copies of the compute stream (the CPU half's result) queue behind whole experts on the single host-to-device copy engine. Pacing the uploads in 64 KiB chunks with one in flight removed most of that cost (45 to 56 tok/s at 5120 MiB).
+
+Correctness: `llama-perplexity -ub 1` with KL divergence against the no-cache logits (1,024 tokens). The hybrid's mean KLD is 0.0062 at 5120 MiB and 0.0060 at 2048 MiB, against 0.0060 for the upstream cache and 0.000001 for a no-cache control. The hybrid differs from experts-on-CPU only as much as the GPU does, so no expert is lost or counted twice.
+
+`tools/bench_decode.sh`, `--load-mode none`, 2 interleaved repeats (results in the HF dataset's `e3d-bench.tsv`; repeats differ by up to 10% on this laptop):
+
+| config | decode tok/s | prefill tok/s (14 tok) |
+|---|---|---|
+| no cache | 45.5 | 91 |
+| upstream 2048 MiB | 30.4 | 35 |
+| upstream 5120 MiB | 50.9 | 35 |
+| hybrid 2048 MiB | 44.2 | 82 |
+| hybrid 3072 MiB | 50.7 | 90 |
+| **hybrid 5120 MiB** | **55.1** | **91** |
+
+- The hybrid is +8% over upstream at 5120 MiB and +45% at 2048 MiB, where upstream is slower than no cache. It keeps prefill at the no-cache speed (upstream: 2.7x slower).
+- It is short of the 72 tok/s E3c predicted. Fitting the runs gives a fixed cost of about 0.09 ms per layer for the extra CPU chain (split launch, two activation copies, CPU threadpool), against the 0.025 ms hop assumed. One CPU expert costs about 0.045 ms. With those values the timeline predicts 60 tok/s, and its hit rate is higher than measured (0.83 vs 0.78) because the real queue cap drops more admissions.
+- What is left to gain is that per-layer fixed cost, not prediction. One option is to run the CPU half concurrently with the GPU half; today they are serialized by the activation copy on the compute stream. Another is to skip the CPU chain when a layer has no misses.
+

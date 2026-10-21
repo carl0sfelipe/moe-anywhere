@@ -46,6 +46,12 @@ ALLOWED_URLS = {
     "https://www.apache.org/licenses/LICENSE-2.0",
     "https://huggingface.co/datasets/carlosfelipe/moe-anywhere-routing-traces",
     "https://github.com/carl0sfelipe/moe-anywhere",
+    "https://github.com/ggml-org/llama.cpp/pull/29887",
+    "https://github.com/ggml-org/llama.cpp/pull/27861",
+    "https://github.com/ggml-org/llama.cpp/discussions/28248",
+    "https://github.com/ggml-org/llama.cpp/discussions/24528",
+    "https://github.com/ggml-org/llama.cpp/issues/20757",
+    "https://github.com/MohammadR3za/HybridMoE",
 }
 
 URL_RE = re.compile(r"https?://[^\s)\]>\"'`]+")
