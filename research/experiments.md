@@ -95,3 +95,18 @@ Each layer moved saves 0.33 ms/token, so routed experts on CPU cost about 13.2 m
 - Budget 16 raises the hit rate but copies stop fitting under compute and tok/s collapses: the PCIe link, not prediction quality, is the limit on this card.
 - 128 experts/layer (about 10.5 GB) does not fit 8 GB; on a 24 GB RTX 3090 it predicts 87 tok/s, but the cost model there must be re-measured.
 - Caveat: the model assumes GPU and CPU expert work add up sequentially and that copies overlap perfectly; both need checking in E3b.
+
+### E3b — upstream llama.cpp `--moe-cache-mib` (2026-10-21)
+
+llama.cpp 0a1ef30 already ships a VRAM expert cache (`src/llama-moe-cache.cpp`): segmented LRU per layer, filled on demand when the scheduler uploads a layer's slot map. It has no prediction. A miss is copied before the layer runs.
+
+Sage-A1.5 Q4_K_M, `-ngl 99 -ot exps=CPU`, `llama-completion`, 200 tokens, greedy, one coding prompt:
+
+| `--moe-cache-mib` | ≈ experts/layer | decode tok/s | prefill tok/s (14 tok) |
+|---|---|---|---|
+| 0 | 0 | 45.1 | 86.3 |
+| 2048 | ~25 | 29.5 | 31.2 |
+| 4096 | ~51 | 41.8 | 32.0 |
+| 5120 | ~64 | 49.0 | 31.8 |
+
+This matches E3a: on-demand fills stall on PCIe, so small caches are slower than no cache, and the cache pays off only near 64/layer (+9%). The same cache filled by pre-gating one layer ahead is predicted at 70.6 tok/s. The next step is to add a pre-gated prefetch to `llama_moe_cache` that fills from layer L-1's `l_out` asynchronously, instead of writing a new cache.
