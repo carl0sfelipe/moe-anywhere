@@ -9,11 +9,13 @@ Usage:
 """
 import argparse
 import csv
+import os
 import sys
 
 import numpy as np
 
-LLAMA_GGUF_PY = "/home/carl0sfelipe/src/llama.cpp/gguf-py"
+# gguf-py from a llama.cpp checkout (or `pip install gguf`)
+LLAMA_GGUF_PY = os.environ.get("LLAMA_GGUF_PY", os.path.expanduser("~/src/llama.cpp/gguf-py"))
 
 
 def rms_norm(x, weight, eps=1e-6):
