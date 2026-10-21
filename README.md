@@ -8,6 +8,15 @@ Mixture-of-Experts models activate only a small slice of their weights per token
 
 moe-anywhere is sponsored by [bestmodel.run](https://bestmodel.run) — see what actually runs on your machine. Every result here is submitted to the bestmodel.run pool.
 
+## Highlights
+
+Measured on Sage-A1.5 (Qwen3.6-35B-A3B, 256 experts/layer, top-8) with an RTX 5050 8 GB, all in [research/experiments.md](research/experiments.md):
+
+- **Pre-gating works:** running layer L+1's router on layer L's output recalls 82% of the next layer's experts (96% with 16 candidates), against 36% for LRU.
+- **A small cache goes far:** 64 of 256 experts per layer in VRAM (about 5.2 GB) catch 79% of selections with plain LRU.
+- **Simulated hybrid cache:** 64 experts/layer + pre-gating predicts 70.6 tok/s against 41.9 tok/s for llama.cpp's experts-on-CPU baseline (1.68x). Implementation in llama.cpp is next (E3b).
+- **Open data:** routing traces and hidden states on Hugging Face: [carlosfelipe/moe-anywhere-routing-traces](https://huggingface.co/datasets/carlosfelipe/moe-anywhere-routing-traces).
+
 ## Problem
 
 - Large MoEs (hundreds of billions of parameters) do not fit in consumer VRAM, even when only a few billion parameters are active per token.

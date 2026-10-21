@@ -44,6 +44,8 @@ ALLOWED_URLS = {
     "https://arxiv.org/pdf/2607.24787",
     "https://huggingface.co/InternScience/Sage-A1.5",
     "https://www.apache.org/licenses/LICENSE-2.0",
+    "https://huggingface.co/datasets/carlosfelipe/moe-anywhere-routing-traces",
+    "https://github.com/carl0sfelipe/moe-anywhere",
 }
 
 URL_RE = re.compile(r"https?://[^\s)\]>\"'`]+")
