@@ -1,6 +1,6 @@
 # S3 — Formato de trace de roteamento + gerador sintético
 
-Repo: /home/carl0sfelipe/src/moe-anywhere. Python com numpy e pyarrow (já no .venv).
+Repo: /home/carl0sfelipe/src/moe-anywhere-surf. Python com numpy e pyarrow (já no .venv).
 
 ## O que fazer
 
@@ -33,11 +33,11 @@ Não use declare const nem dados fixos para passar no teste.
 
 ## Verificação
 
-VERIFICACAO: cd /home/carl0sfelipe/src/moe-anywhere && .venv/bin/python -m pytest -q tests/test_trace.py -k shapes
+VERIFICACAO: cd /home/carl0sfelipe/src/moe-anywhere-surf && .venv/bin/python -m pytest -q tests/test_trace.py -k shapes
 
 ## Oráculo
 
-- comando: cd /home/carl0sfelipe/src/moe-anywhere && .venv/bin/python -m pytest -q tests/test_trace.py
+- comando: cd /home/carl0sfelipe/src/moe-anywhere-surf && .venv/bin/python -m pytest -q tests/test_trace.py
 - exit esperado: 0
 
 ## Barra

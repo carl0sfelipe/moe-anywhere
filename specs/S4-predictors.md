@@ -1,6 +1,6 @@
 # S4 — Preditores de experts + avaliador
 
-Repo: /home/carl0sfelipe/src/moe-anywhere. Depende de S3 (moe_anywhere/trace.py).
+Repo: /home/carl0sfelipe/src/moe-anywhere-surf. Depende de S3 (moe_anywhere/trace.py).
 
 ## O que fazer
 
@@ -37,11 +37,11 @@ Não edite tests/test_predictors.py. Não use declare const nem valores fixos.
 
 ## Verificação
 
-VERIFICACAO: cd /home/carl0sfelipe/src/moe-anywhere && .venv/bin/python -m pytest -q tests/test_predictors.py -k cli
+VERIFICACAO: cd /home/carl0sfelipe/src/moe-anywhere-surf && .venv/bin/python -m pytest -q tests/test_predictors.py -k cli
 
 ## Oráculo
 
-- comando: cd /home/carl0sfelipe/src/moe-anywhere && .venv/bin/python -m pytest -q tests/test_predictors.py tests/test_trace.py
+- comando: cd /home/carl0sfelipe/src/moe-anywhere-surf && .venv/bin/python -m pytest -q tests/test_predictors.py tests/test_trace.py
 - exit esperado: 0
 
 ## Barra
