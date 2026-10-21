@@ -65,4 +65,33 @@ Against LRU/prev_token (0.364 at budget 8), pre-gating is 2.3x better with the s
 ## E3
 
 Online VRAM expert cache + async prefetch vs E0.
-Status: planned
+Status: E3a (simulation) done 2026-10-21; E3b (llama.cpp implementation) planned
+
+### E3a — simulated hybrid cache
+
+Measured cost model (llama-bench tg128, RTX 5050, `-ot` moving whole layers' experts to CUDA0):
+
+| layers with experts on GPU | 0 | 4 | 8 | 12 |
+|---|---|---|---|---|
+| tok/s | 41.91 | 44.30 | 47.39 | 50.27 |
+
+Each layer moved saves 0.33 ms/token, so routed experts on CPU cost about 13.2 ms of the 23.9 ms token; the rest (10.6 ms) is the all-GPU ceiling of about 94 tok/s. Copying one expert RAM to VRAM costs about 0.17 ms (2.04 MB over PCIe 4.0 x8), four times its CPU compute (0.041 ms), so fetching every expert per token is slower than the CPU and a cache only pays off when copies stay hidden under compute.
+
+`python -m moe_anywhere.simulate Sage-A1.5-Q4_K_M.gguf traces/e2-hidden.tsv traces/e2.hidden` (hits on GPU, misses on CPU, copies overlapped with compute; 2,560 tokens evaluated, first 2,560 used to build the static cache):
+
+| experts/layer | policy | hit rate | copies/token | predicted tok/s |
+|---|---|---|---|---|
+| 32 | static | 0.310 | 0 | 50.7 |
+| 32 | lru | 0.614 | 123.6 | 46.5 |
+| 32 | pregate b8 | 0.880 | 122.8 | 47.3 |
+| 64 | static | 0.496 | 0 | 57.9 |
+| 64 | lru | 0.772 | 72.8 | 67.2 |
+| **64** | **pregate b8** | **0.912** | **72.1** | **70.6** |
+| 64 | pregate b16 | 0.957 | 185.3 | 31.7 |
+| 128 | lru | 0.919 | 25.8 | 85.2 |
+| 128 | pregate b8 | 0.947 | 25.5 | 87.4 |
+
+- On the RTX 5050 (64 experts/layer, about 5.2 GB), pre-gating with 8 candidates predicts 70.6 tok/s, 1.68x the 42 tok/s baseline.
+- Budget 16 raises the hit rate but copies stop fitting under compute and tok/s collapses: the PCIe link, not prediction quality, is the limit on this card.
+- 128 experts/layer (about 10.5 GB) does not fit 8 GB; on a 24 GB RTX 3090 it predicts 87 tok/s, but the cost model there must be re-measured.
+- Caveat: the model assumes GPU and CPU expert work add up sequentially and that copies overlap perfectly; both need checking in E3b.
