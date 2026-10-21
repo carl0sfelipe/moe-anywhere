@@ -1,0 +1,74 @@
+{"prompt_id": 0, "task": "code", "prompt": "Write a Python function that merges two sorted lists in linear time."}
+{"prompt_id": 1, "task": "code", "prompt": "Implement an LRU cache class in Python with get and put in O(1)."}
+{"prompt_id": 2, "task": "code", "prompt": "Write a Rust function that parses a CSV line respecting quoted fields."}
+{"prompt_id": 3, "task": "code", "prompt": "Explain and fix the bug: `for i in range(len(xs)): xs.remove(xs[i])`."}
+{"prompt_id": 4, "task": "code", "prompt": "Write a SQL query that returns the top 3 customers by total order value per country."}
+{"prompt_id": 5, "task": "code", "prompt": "Write a bash one-liner that finds the 10 largest files under the current directory."}
+{"prompt_id": 6, "task": "code", "prompt": "Implement binary search in C and explain the overflow-safe midpoint."}
+{"prompt_id": 7, "task": "code", "prompt": "Write a TypeScript debounce function with proper generic typing."}
+{"prompt_id": 8, "task": "code", "prompt": "Refactor this into idiomatic Go: a function that reads a file line by line and counts words."}
+{"prompt_id": 9, "task": "code", "prompt": "Write a CUDA kernel that adds two float vectors and the host code to launch it."}
+{"prompt_id": 10, "task": "code", "prompt": "Write unit tests with pytest for a function that validates email addresses."}
+{"prompt_id": 11, "task": "code", "prompt": "Explain the difference between a process and a thread, with a Python example of each."}
+{"prompt_id": 12, "task": "chat_en", "prompt": "What are the pros and cons of working remotely?"}
+{"prompt_id": 13, "task": "chat_en", "prompt": "Give me five ideas for a birthday party for a ten-year-old."}
+{"prompt_id": 14, "task": "chat_en", "prompt": "How do I politely decline a meeting invitation from my manager?"}
+{"prompt_id": 15, "task": "chat_en", "prompt": "Explain how vaccines train the immune system, in simple terms."}
+{"prompt_id": 16, "task": "chat_en", "prompt": "What should I consider when buying a used car?"}
+{"prompt_id": 17, "task": "chat_en", "prompt": "Write a short motivational message for someone starting a new job."}
+{"prompt_id": 18, "task": "chat_en", "prompt": "Why is the sky blue?"}
+{"prompt_id": 19, "task": "chat_en", "prompt": "Recommend a weekly workout plan for a beginner with no equipment."}
+{"prompt_id": 20, "task": "chat_en", "prompt": "What is the difference between weather and climate?"}
+{"prompt_id": 21, "task": "chat_en", "prompt": "Help me write a thank-you note to a teacher."}
+{"prompt_id": 22, "task": "chat_pt", "prompt": "Explique em duas frases o que é um modelo Mixture of Experts."}
+{"prompt_id": 23, "task": "chat_pt", "prompt": "Quais são as vantagens de morar perto do trabalho?"}
+{"prompt_id": 24, "task": "chat_pt", "prompt": "Me dê uma receita simples de pão de queijo."}
+{"prompt_id": 25, "task": "chat_pt", "prompt": "Como posso organizar melhor meu tempo de estudo?"}
+{"prompt_id": 26, "task": "chat_pt", "prompt": "Escreva uma mensagem de aniversário carinhosa para minha mãe."}
+{"prompt_id": 27, "task": "chat_pt", "prompt": "Qual a diferença entre juros simples e juros compostos?"}
+{"prompt_id": 28, "task": "chat_pt", "prompt": "Explique o que é inflação para uma criança de dez anos."}
+{"prompt_id": 29, "task": "chat_pt", "prompt": "Dê dicas para uma entrevista de emprego na área de tecnologia."}
+{"prompt_id": 30, "task": "chat_pt", "prompt": "Por que o Brasil tem tantos tipos de clima diferentes?"}
+{"prompt_id": 31, "task": "chat_pt", "prompt": "Resuma a história da independência do Brasil em um parágrafo."}
+{"prompt_id": 32, "task": "chat_es", "prompt": "¿Cuáles son los beneficios de aprender un segundo idioma?"}
+{"prompt_id": 33, "task": "chat_es", "prompt": "Explica brevemente cómo funciona la fotosíntesis."}
+{"prompt_id": 34, "task": "chat_es", "prompt": "Dame tres consejos para ahorrar dinero cada mes."}
+{"prompt_id": 35, "task": "chat_es", "prompt": "¿Qué lugares turísticos recomiendas en Paraguay?"}
+{"prompt_id": 36, "task": "math", "prompt": "Solve for x: 3x + 7 = 2x - 5. Show the steps."}
+{"prompt_id": 37, "task": "math", "prompt": "What is the derivative of x^3 * sin(x)?"}
+{"prompt_id": 38, "task": "math", "prompt": "A train travels 300 km in 2.5 hours. What is its average speed in m/s?"}
+{"prompt_id": 39, "task": "math", "prompt": "Prove that the sum of the first n odd numbers is n^2."}
+{"prompt_id": 40, "task": "math", "prompt": "Compute the integral of 1/(1+x^2) from 0 to 1."}
+{"prompt_id": 41, "task": "math", "prompt": "How many ways can 5 people sit around a round table?"}
+{"prompt_id": 42, "task": "math", "prompt": "Find the eigenvalues of the matrix [[2, 1], [1, 2]]."}
+{"prompt_id": 43, "task": "math", "prompt": "If a coin is flipped 10 times, what is the probability of exactly 6 heads?"}
+{"prompt_id": 44, "task": "math", "prompt": "Explain why 0.999... equals 1."}
+{"prompt_id": 45, "task": "math", "prompt": "Calcule 15% de 240 e explique o raciocínio."}
+{"prompt_id": 46, "task": "reasoning", "prompt": "If all bloops are razzies and all razzies are lazzies, are all bloops lazzies? Explain."}
+{"prompt_id": 47, "task": "reasoning", "prompt": "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much is the ball?"}
+{"prompt_id": 48, "task": "reasoning", "prompt": "You have 3 boxes labeled apples, oranges and mixed, all labeled wrong. You can pick one fruit from one box. How do you relabel them?"}
+{"prompt_id": 49, "task": "reasoning", "prompt": "Which is heavier, a kilogram of feathers or a kilogram of steel? Why do people get this wrong?"}
+{"prompt_id": 50, "task": "reasoning", "prompt": "Plan a 3-step strategy to debug a web page that loads slowly."}
+{"prompt_id": 51, "task": "reasoning", "prompt": "What are the second-order effects of a city banning cars from its center?"}
+{"prompt_id": 52, "task": "reasoning", "prompt": "Três amigos dividem uma conta de R$ 90 e cada um paga R$ 30. Depois recebem R$ 5 de desconto. Explique como dividir."}
+{"prompt_id": 53, "task": "reasoning", "prompt": "A farmer has 17 sheep and all but 9 run away. How many are left?"}
+{"prompt_id": 54, "task": "tools", "prompt": "You have a tool get_weather(city: str). The user asks: 'Should I bring an umbrella in Ciudad del Este tomorrow?' Respond with the JSON tool call you would make."}
+{"prompt_id": 55, "task": "tools", "prompt": "Given tools search(query) and read_url(url), outline the tool calls to find the current price of an RTX 3090."}
+{"prompt_id": 56, "task": "tools", "prompt": "Return a JSON object with fields name, age and email extracted from: 'Contact Ana Souza, 34, at ana@example.com'."}
+{"prompt_id": 57, "task": "tools", "prompt": "You can call run_sql(query). Write the call to count users who signed up in the last 7 days from table users(created_at)."}
+{"prompt_id": 58, "task": "tools", "prompt": "Convert this request into a function call JSON: 'Remind me to call the dentist at 3pm on Friday.'"}
+{"prompt_id": 59, "task": "tools", "prompt": "You have tools list_files(dir) and read_file(path). Describe the calls to find which file defines the function main in a repo."}
+{"prompt_id": 60, "task": "tools", "prompt": "Emit a JSON array of three tasks with title and priority for: 'I need to pay rent, fix the bike and call grandma.'"}
+{"prompt_id": 61, "task": "tools", "prompt": "Given a tool translate(text, target_lang), write the call to translate 'good morning' into Portuguese and Spanish."}
+{"prompt_id": 62, "task": "summarize", "prompt": "Summarize in three bullet points: Mixture-of-Experts models route each token to a few expert networks, so only a fraction of parameters is used per token. This makes them cheaper to run than dense models of the same size, but they still need memory for every expert."}
+{"prompt_id": 63, "task": "summarize", "prompt": "Summarize the plot of Romeo and Juliet in two sentences."}
+{"prompt_id": 64, "task": "summarize", "prompt": "Resuma em uma frase: modelos de linguagem grandes são treinados em muito texto para prever a próxima palavra, e com isso aprendem gramática, fatos e algum raciocínio."}
+{"prompt_id": 65, "task": "summarize", "prompt": "Give a one-paragraph summary of how the internet routes a packet from one computer to another."}
+{"prompt_id": 66, "task": "translate", "prompt": "Translate to Portuguese: 'The quick brown fox jumps over the lazy dog.'"}
+{"prompt_id": 67, "task": "translate", "prompt": "Translate to English: 'Eu gostaria de reservar uma mesa para duas pessoas às oito.'"}
+{"prompt_id": 68, "task": "translate", "prompt": "Translate to Spanish: 'Local inference keeps your data on your own machine.'"}
+{"prompt_id": 69, "task": "translate", "prompt": "Translate to English: 'Mañana vamos a la playa si no llueve.'"}
+{"prompt_id": 70, "task": "creative", "prompt": "Write a haiku about a graphics card running hot."}
+{"prompt_id": 71, "task": "creative", "prompt": "Write a four-line poem in Portuguese about the rain."}
+{"prompt_id": 72, "task": "creative", "prompt": "Invent a short story opening about a robot that learns to cook."}
+{"prompt_id": 73, "task": "creative", "prompt": "Write a product description for a solar-powered backpack."}
