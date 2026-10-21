@@ -221,3 +221,17 @@ Replaying the E3b trace (`e3-bench.tsv` from the dataset) through `timeline.py` 
 | hybrid, simulated / measured | 55.7 / 53.3 | 59.0 / 57.7 | 64.1 / 61.5 |
 
 So the timeline transfers to a new machine once it has the machine's two bandwidths. The hybrid is still 2-5% optimistic, as in E3d, because its hit rate runs high (0.60 against 0.565 at 2048 MiB). The break-even rule (hit rate >= 1 - PCIe_BW/RAM_BW) needs effective bandwidths measured with llama.cpp, not DIMM specs: here the effective CPU-expert rate barely moved while the effective PCIe rate rose 28%.
+
+### E4.1 — overlapping the CPU and GPU halves: no gain (2026-10-21, 7800X3D)
+
+In decode each hybrid layer has three scheduler splits: CUDA (slot-map lookup, where the copy callback synchronizes to read the selected experts, then the GPU experts), CPU (its only input is `attn_post_norm`, 8 KiB, and it runs up/gate/down of the CPU experts) and CUDA (multiply by the router weights, add). The CPU split copies its input with `ggml_backend_synchronize(CUDA)`, so it waits for the GPU experts that were just queued. A scheduler change (env `GGML_SCHED_INPUT_EVENTS=1`) recorded an event after every split and waited only for the event of the split that produced the input. It works, but `tools/bench_decode.sh`, 3 interleaved repeats, shows no gain:
+
+| config | events off | events on |
+|---|---|---|
+| hybrid 2048 MiB | 51.2 | 50.8 |
+| hybrid 3072 MiB | 56.9 | 57.0 |
+| hybrid 5120 MiB | 63.0 | 62.4 |
+
+A first one-off A/B showed +4%, which was noise. The GPU half of a layer runs at most 8 cached experts with MMVQ, which is too short to hide anything behind.
+
+The CPU half is not limited by threads either. At 5120 MiB, 2 interleaved repeats: `-t 4` 63.4, `-t 6` 64.1, `-t 8` 62.7, `--poll 0` / `--poll 100` / `--cpu-strict 1` all 59-63. So the remaining ~0.09 ms per layer is fixed latency: the full synchronization at the cache sync point plus two cross-backend hops. The next candidates are to remove splits rather than overlap them, for example by folding the slot-map read into the router split, or by skipping the CPU chain for layers with no misses (which needs a graph that does not depend on the plan). The scheduler change is not kept.
