@@ -317,3 +317,28 @@ Status: planned
 6. E4.7 (task robustness)
 7. E4.2 (multi-token hybrid ubatches)
 8. E4.8 (cluster transfer)
+
+### E4 operational protocol (for the next machine session)
+
+Run this sequence to minimize rework and keep results comparable:
+
+1. Host recalibration (`tools/lab_run.sh`) to estimate effective CPU-expert and PCIe upload costs.
+2. Cache-size curves (`tools/bench_decode.sh`, 2-6 GiB) for upstream vs hybrid.
+3. Timeline backlog sweep (`python -m moe_anywhere.timeline ... --max-backlog-ms ...`) with calibrated constants.
+4. Admission-policy comparison (`eval_predictors` + `timeline`) at 2048 and 5120 MiB.
+5. Only then move to C++ changes (overlap, ubatch > 1), because model-level sweeps often eliminate low-value implementation paths.
+
+Minimum report fields per run folder:
+
+- machine info (CPU, RAM, GPU, PCIe link, driver)
+- exact llama.cpp commit and flags
+- context and fit settings (`-c 8192 -fit off`, `--load-mode none`)
+- decode tok/s, prefill tok/s, hit rate, copies/token, misses/token
+- repeat count and spread
+- KL divergence summary when hybrid behavior changes
+
+Stop/go gates before implementation work:
+
+- If upstream replay error is above 2%, recalibrate timeline constants first.
+- If hybrid replay error is above 5%, fix model mismatch before drawing conclusions.
+- If any candidate policy is slower than no-cache at the same setup, drop it from further sweeps.
