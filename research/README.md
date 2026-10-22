@@ -8,6 +8,7 @@
 - [bandwidth.md](bandwidth.md) — memory and link tiers, and how we estimate bandwidth-bound tok/s.
 - [experiments.md](experiments.md) — planned and finished experiments.
 - [open-questions.md](open-questions.md) — what we do not know yet.
+- [nemotron-bolt.md](nemotron-bolt.md) — Nemotron 3.5 Bolt: why it, risks for the hybrid cache, three experiment ideas.
 
 ## How to contribute
 

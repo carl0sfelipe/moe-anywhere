@@ -52,6 +52,23 @@ ALLOWED_URLS = {
     "https://github.com/ggml-org/llama.cpp/discussions/24528",
     "https://github.com/ggml-org/llama.cpp/issues/20757",
     "https://github.com/MohammadR3za/HybridMoE",
+    "https://ar5iv.labs.arxiv.org/html/2504.05897",
+    "https://arxiv.org/abs/2510.10302",
+    "https://arxiv.org/abs/2511.14102",
+    "https://arxiv.org/abs/2607.24434",
+    "https://arxiv.org/html/2402.07033",
+    "https://arxiv.org/html/2602.03495",
+    "https://arxiv.org/html/2604.12374",
+    "https://arxiv.org/pdf/2411.01433",
+    "https://github.com/ggml-org/llama.cpp/pull/30520",
+    "https://github.com/ikawrakow/ik_llama.cpp/discussions/164",
+    "https://github.com/jamesburton/dotLLM/issues/1035",
+    "https://hackmd.io/@thc1006/SJly6IE6Wx",
+    "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-GGUF",
+    "https://huggingface.co/unsloth/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-GGUF",
+    "https://research.nvidia.com/labs/nemotron/Nemotron-3.5-Bolt-24GB/",
+    "https://www.bodegaone.ai/blog/run-nemotron-3-5-bolt-locally",
+    "https://www.emergentmind.com/papers/2608.21240",
 }
 
 URL_RE = re.compile(r"https?://[^\s)\]>\"'`]+")
