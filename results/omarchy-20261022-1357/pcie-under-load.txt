@@ -1,0 +1,2 @@
+pcie.link.gen.current, pcie.link.width.current
+3, 16

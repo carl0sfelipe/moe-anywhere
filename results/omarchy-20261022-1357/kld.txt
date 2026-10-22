@@ -1,0 +1,2 @@
+--moe-cache-mib 5120: Mean    KLD:   0.006809 ±   0.001435
+--moe-cache-mib 5120 --moe-cache-hybrid: Mean    KLD:   0.007331 ±   0.001670

@@ -18,7 +18,7 @@ for rep in $(seq 1 "$reps"); do
         label=${cfg%%|*}; extra=${cfg#*|}
         # shellcheck disable=SC2086
         log=$("$bin/llama-completion" -m "$model" -ngl 99 -ot exps=CPU -c "$ctx" -fit off -p "$prompt" \
-              -n "$ngen" -no-cnv --temp 0 -lv 4 $extra 2>&1) || { echo "$label failed" >&2; continue; }
+              -n "$ngen" -no-cnv --temp 0 -lv 4 $extra 2>&1) || { echo "$label failed (log: ${FAIL_DIR:-/tmp}/$label-$rep.log)" >&2; printf '%s\n' "$log" >"${FAIL_DIR:-/tmp}/$label-$rep.log"; continue; }
         dec=$(grep -oP ' eval time .*?\K[0-9.]+(?= tokens per second)' <<<"$log" | tail -1)
         pre=$(grep -oP 'prompt eval time .*?\K[0-9.]+(?= tokens per second)' <<<"$log" | tail -1)
         nctx=$(grep -oP 'n_ctx\s*=\s*\K[0-9]+' <<<"$log" | head -1)

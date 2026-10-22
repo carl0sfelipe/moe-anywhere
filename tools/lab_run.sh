@@ -3,8 +3,8 @@
 # Results land in results/<host>-<date>/ (summary.tsv plus raw logs); send that folder back.
 #
 # Usage (from a clone of moe-anywhere):  bash tools/lab_run.sh
-# Env: MODELS (~/models/Sage-A1.5), LLAMA_DIR (~/src/llama.cpp-moe), LLAMA_BASE (36cbf415f; needs patches/llama.cpp-<base>-moe-cache-hybrid.patch),
-#      REPS (3), KLD (0; 1 = also run the KL check)
+# Env: MODEL (a GGUF path; default Sage-A1.5 under MODELS, downloaded if missing), MODELS (~/models/Sage-A1.5), LLAMA_DIR (~/src/llama.cpp-moe), LLAMA_BASE (36cbf415f; needs patches/llama.cpp-<base>-moe-cache-hybrid.patch),
+#      REPS (3), KLD (0; 1 = also run the KL check), JOBS (build jobs, default nproc; use 4 with 32 GB RAM)
 # Needs: git, cmake, a CUDA toolkit with nvcc, nvidia-smi, python3, and `hf` (pip install -U huggingface_hub).
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -15,7 +15,7 @@ base=${LLAMA_BASE:-36cbf415f}
 patch=$root/patches/llama.cpp-$base-moe-cache-hybrid.patch
 out=$root/results/$(hostname)-$(date +%Y%m%d-%H%M)
 mkdir -p "$out"
-model=$models/Sage-A1.5-Q4_K_M.gguf
+model=${MODEL:-$models/Sage-A1.5-Q4_K_M.gguf}
 
 for tool in git cmake nvcc nvidia-smi python3; do
     command -v "$tool" >/dev/null || { echo "missing: $tool" >&2; exit 1; }
@@ -39,9 +39,10 @@ git -C "$llama" fetch -q origin "$base" 2>/dev/null || true
 git -C "$llama" checkout -q -f "$base"
 git -C "$llama" apply "$patch"
 echo "base: $base" >>"$out/system.txt"
+echo "model: $model" >>"$out/system.txt"
 arch=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d '.')
 cmake -S "$llama" -B "$llama/build" -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="$arch" -DCMAKE_BUILD_TYPE=Release >"$out/cmake.log" 2>&1
-cmake --build "$llama/build" -j "$(nproc)" --target llama-completion llama-bench llama-perplexity >"$out/build.log" 2>&1
+cmake --build "$llama/build" -j "${JOBS:-$(nproc)}" --target llama-completion llama-bench llama-perplexity >"$out/build.log" 2>&1
 bin=$llama/build/bin
 
 echo "== model"
@@ -59,7 +60,7 @@ echo "== llama-bench: threads, hop cost, per-layer CPU cost (tg128)"
     -ot "blk\.[0-7]\.ffn_.*_exps=CUDA0;exps=CPU" 2>/dev/null | tee "$out/bench-hop.md"
 
 echo "== decode matrix (tools/bench_decode.sh, pinned memory, ctx 8192)"
-LLAMA_BIN=$bin "$root/tools/bench_decode.sh" "$model" "$reps" \
+FAIL_DIR=$out LLAMA_BIN=$bin "$root/tools/bench_decode.sh" "$model" "$reps" \
     "nocache|--moe-cache-mib 0 --load-mode none" \
     "up2048|--moe-cache-mib 2048 --load-mode none" \
     "up5120|--moe-cache-mib 5120 --load-mode none" \

@@ -1,0 +1,17 @@
+date: 2026-10-22T13:57:56-03:00
+kernel: 7.1.9-arch1-2
+CPU(s):                                  6
+Model name:                              AMD Ryzen 5 3500X 6-Core Processor
+Thread(s) per core:                      1
+Core(s) per socket:                      6
+Socket(s):                               1
+CPU(s) scaling MHz:                      99%
+CPU max MHz:                             4121.3799
+CPU min MHz:                             571.0350
+               total        used        free      shared  buff/cache   available
+Mem:              31          10           1           0          21          20
+(dmidecode needs sudo: run 'sudo dmidecode -t memory' for RAM speed)
+name, driver_version, memory.total [MiB], pcie.link.gen.max, pcie.link.width.max, compute_cap
+NVIDIA GeForce RTX 3090, 610.57.04, 24576 MiB, 3, 16, 8.6
+base: 36cbf415f
+model: /home/carlos/models/Sage-A1.5/Sage-A1.5-Q4_K_M.gguf

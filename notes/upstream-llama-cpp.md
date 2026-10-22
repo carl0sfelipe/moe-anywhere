@@ -40,7 +40,8 @@ RTX 5050 8 GB, PCIe 4.0 x8, Sage-A1.5 Q4_K_M (qwen35moe, 256 experts, top-8), `-
 - Rebaseado em 2026-10-22 no master `36cbf415f`: `patches/llama.cpp-36cbf415f-moe-cache-hybrid.patch` (aplica limpo, checado).
 - Único conflito: `src/llama-graph.cpp`. O patch reindenta o bloco do MoE, e o master tinha adicionado `LLM_ARCH_FLINT` na condição do `build_amax_src1_f16`. Fiquei com o lado do patch e levei o FLINT junto. A mudança de Hadamard do master (`cur_mm` em `build_lora_mm_id`) entra sozinha, porque o hybrid passa todas as matmuls de expert por `build_lora_mm_id`.
 - O trailer agora é `Assisted-by: Claude Opus 5.5` (regra do llama.cpp). A mensagem de commit ainda precisa ser reescrita por você antes do PR.
-- Compilou só em CPU (`llama-completion`, `test-backend-ops`, sem warning nos arquivos do patch), numa máquina sem CUDA. Ainda falta: build CUDA, bench e KLD.
+- Compilou só em CPU (`llama-completion`, `test-backend-ops`, sem warning nos arquivos do patch), numa máquina sem CUDA.
+- **CUDA validado em 2026-10-22 (E3f)**, RTX 3090 + Ryzen 5 3500X: compila sem mudança, roda, KLD igual ao upstream no Sage-A1.5 e no Nemotron 3.5 Bolt (arquitetura nova: experts por camada, sem gate, LatentMoE). **Mas nessa máquina o hybrid ficou 2x mais lento que o upstream** e instável. Falta saber se é a máquina (PCIe 3.0 x16 rápido, CPU fraca, containers de prod) ou o rebase: rodar 0a1ef30 e 36cbf415f no mesmo dia no 7800X3D. Não abrir nada upstream antes disso.
 - Tamanho: 10 arquivos, +507 / -178. Revisão honesta pela regra deles: 1h por 200-400 linhas.
 - Limite: só ubatch de 1 token, só 1 GPU, só CUDA testado.
 

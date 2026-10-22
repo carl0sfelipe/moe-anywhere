@@ -1,4 +1,4 @@
-# Handoff (2026-10-21)
+# Handoff (2026-10-22)
 
 State of the lab for whoever continues it, human or agent, with no prior context. Read this, then `research/experiments.md` (E0-E3d), which has every number.
 
@@ -43,43 +43,34 @@ After that:
 3. Submit results to bestmodel.run. This needs an agent token: `POST /v1/auth/tokens` with the console session in localStorage `bm_token`, then `benchmark-probe login --token ...` typed by the owner. Never paste tokens in chat, and upload only with the owner's OK.
 4. DeepSeek-V4.1-Flash on the 8x3090 cluster (docs in the private repo carl0sfelipe/rig3d): re-measure the cost model there, since PCIe 3.0 risers change the balance.
 
-## Next task on a CUDA machine (2026-10-22): validate the rebased patch
+## Next task (2026-10-22): settle the rebase on the 7800X3D, then the PR evidence
 
-If you are an agent on a machine with an NVIDIA GPU, this is your task. The owner wants it done without further prompts.
+E3f ran the rebased patch on `omarchy` (RTX 3090, Ryzen 5 3500X, DDR4). It builds with CUDA and the KLD matches upstream on Sage-A1.5 and on Nemotron 3.5 Bolt, but **the hybrid was about 2x slower than upstream there and unstable**. It is not known whether that is the machine or the rebase. Read E3f in `research/experiments.md` and `research/nemotron-bolt.md` first.
 
-### What changed in the patch
+Run on `omarchy-white` (Ryzen 7 7800X3D, DDR5, RTX 5050 8 GB), in this order. Use `ulimit -c 0`; with about 30 GB RAM use `JOBS=4` (6 CUDA jobs got OOM-killed on a 31 GB box); `bench_decode.sh` now saves failed-run logs in the results folder.
 
-`patches/llama.cpp-36cbf415f-moe-cache-hybrid.patch` is the E3d hybrid (`--moe-cache-hybrid`) moved from llama.cpp 0a1ef30 to master 36cbf415f (2026-10-22, 28 commits later). The logic is unchanged and still touches 10 files, +507/-178.
+1. **Machine or rebase?** Same day, same box:
+   `KLD=1 JOBS=4 bash tools/lab_run.sh` (36cbf415f) and
+   `JOBS=4 LLAMA_BASE=0a1ef30 LLAMA_DIR=~/src/llama.cpp-moe-old bash tools/lab_run.sh` (separate tree, so neither build is lost).
+   Done when hyb5120 on 36cbf415f is within 5-10% of 0a1ef30 (E3e: 61.5). If it is lower, bisect the 28 commits between them before anything else; that is a blocker for the PR.
+2. **Second architecture.** `KLD=1 JOBS=4 MODEL=~/models/Nemotron-3.5-Bolt/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf bash tools/lab_run.sh`
+   (download: `hf download nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-GGUF NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf --local-dir ~/models/Nemotron-3.5-Bolt`, 22 GB). On an 8 GB card about 4.2 GB is non-expert weights, so only about 1-2 GB of cache fits: lower the cache sizes if 5120 does not load. This tests the IQ2_XXS CPU path on fast DDR5, per-layer expert counts (12 cache groups) and ungated experts.
+3. **Why it lost on omarchy** (one cheap check each, no tuning): rerun hyb5120 with `-t 4` vs `-t 8`; and measure CPU expert cost with uploads paused vs running (do background copies slow the CPU experts that read the same RAM?).
+4. Write E3g with the table, update `notes/upstream-llama-cpp.md` "Estado do patch", commit and push.
 
-- One conflict, in `src/llama-graph.cpp` `build_moe_ffn`. The patch re-indents the expert block, and master had added `LLM_ARCH_FLINT` to the `build_amax_src1_f16` condition (#30928). The resolution keeps the patch side and adds `|| arch == LLM_ARCH_FLINT`.
-- Master also changed `build_lora_mm_id`: the expert matmul now reads `cur_mm = build_hadamard_input(w, cur)` (#30910). The hybrid sends every expert matmul through `build_lora_mm_id`, cache banks and host experts alike, so it picks this up without edits. No test covers a Hadamard-folded model with the hybrid; Sage-A1.5 is not one.
-- The commit trailer is now `Assisted-by: Claude Opus 5.5`, as llama.cpp's AGENTS.md requires (it rejects `Co-authored-by` from agents).
-- Checked: `git apply --check` on 36cbf415f, a CPU-only build of `llama-completion` and `test-backend-ops` with no warnings in patched files, and the flags the lab scripts use (`-fit`, `--load-mode`, `--moe-cache-mib`, `--kl-divergence-base`, `--chunks`) still exist.
-- Not checked: the CUDA build, any run, speed, or KLD. The machine that rebased has no GPU.
-- `tools/lab_run.sh` now takes `LLAMA_BASE` (default 36cbf415f) and applies `patches/llama.cpp-<base>-moe-cache-hybrid.patch`. `LLAMA_BASE=0a1ef30` reproduces the old runs.
+### What the PR needs (the owner writes and posts it; agents never post to ggml-org)
 
-### Steps
-
-1. `git pull` in moe-anywhere.
-2. Run `ulimit -c 0; KLD=1 bash tools/lab_run.sh`. It clones llama.cpp to `~/src/llama.cpp-moe` if missing, builds CUDA for the local GPU, downloads Sage-A1.5 (21.7 GB) if missing, and writes `results/<host>-<date>/`. If `nvcc` is not on PATH, try `/opt/cuda/bin`. If `hf` is missing, `pip install -U huggingface_hub` in a venv.
-3. If the build fails, the fix is part of the rebase. Make the smallest change that blends with upstream code, regenerate the patch with `git format-patch -1 --stdout` from a branch on 36cbf415f, and say what you changed and why in this file. Do not move to a newer master unless 36cbf415f can't be built.
-4. Compare with the 0a1ef30 numbers. If the machine is one of the two below, run `LLAMA_BASE=0a1ef30 bash tools/lab_run.sh` too, so old and new are compared on the same day.
-
-| Machine | nocache | up5120 | hyb2048 | hyb5120 | KLD hyb / up |
-|---|---|---|---|---|---|
-| i9-12900HK + RTX 5050 (E3d) | 45.5 | 50.9 | 44.2 | 55.1 | 0.0062 / 0.0060 |
-| 7800X3D + RTX 5050 (E3e, `results/omarchy-white-20261021-1510/`) | 48.4 | 56.7 | 53.3 | 61.5 | 0.0057 / 0.0053 |
-
-### Done when
-
-- The hybrid builds and runs on master 36cbf415f, KLD for the hybrid is within about 10% of upstream's, and hyb5120 is within the 5-10% run noise of the 0a1ef30 number on the same hardware (or of the table above on other hardware, which only shows the trend).
-- The results folder is committed, `research/experiments.md` has a short E3f entry (base commit, table, verdict), and `notes/upstream-llama-cpp.md` "Estado do patch" says CUDA is validated, or what broke. Commit and push to moe-anywhere; that is authorized.
-- If hybrid got slower or the KLD grew, say so plainly in E3f and stop there. Do not tune to get the old number back.
+- Same-day A/B on one machine showing the rebase did not regress (step 1).
+- Numbers on at least two machines and two architectures, **including the loss on omarchy**: the honest framing is "hybrid wins when the CPU expert path is cheaper than PCIe uploads, loses otherwise", with the break-even rule from E3e. A maintainer will ask when it should be on by default; the answer is a rule, not "always".
+- KLD within 10% of upstream on every run (met so far).
+- Known limits stated: single-token ubatch only, one GPU, CUDA only, intermittent failure at 2048 MiB not yet explained (look at the saved logs).
+- Ideally a guard: fall back to the upstream path when the measured CPU cost per expert exceeds the upload cost per expert (idea 1 in `research/nemotron-bolt.md`). Prototype in `moe_anywhere/timeline.py` first.
+- Credit PR #27861 (same design) and coordinate there before opening a new PR.
 
 ### Hard limits
 
 - Do not post, comment, push, open issues, or open PRs on ggml-org/llama.cpp, and do not draft text for them. Its rules ban AI-written posts and agent submissions, and the penalty is a contributor ban for the owner. The upstream plan in `notes/upstream-llama-cpp.md` is for the owner to write and post.
-- Do not upload to bestmodel.run or HF without asking. The routing-trace dataset is authorized, but this task does not need it.
+- Do not upload to bestmodel.run or HF without asking.
 
 ## Working agreements with the owner
 

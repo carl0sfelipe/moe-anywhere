@@ -222,6 +222,46 @@ Replaying the E3b trace (`e3-bench.tsv` from the dataset) through `timeline.py` 
 
 So the timeline transfers to a new machine once it has the machine's two bandwidths. The hybrid is still 2-5% optimistic, as in E3d, because its hit rate runs high (0.60 against 0.565 at 2048 MiB). The break-even rule (hit rate >= 1 - PCIe_BW/RAM_BW) needs effective bandwidths measured with llama.cpp, not DIMM specs: here the effective CPU-expert rate barely moved while the effective PCIe rate rose 28%.
 
+### E3f — rebased patch (36cbf415f) on an RTX 3090 + Ryzen 5 3500X, Sage-A1.5 and Nemotron 3.5 Bolt (2026-10-22)
+
+Machine `omarchy`: Ryzen 5 3500X (6 cores, no SMT, AVX2), 31 GB DDR4 (speed not recorded), RTX 3090 24 GB at PCIe 3.0 x16 (confirmed under load), driver 610.57. The box also runs production containers, so it is noisier than E3d/E3e. llama.cpp master `36cbf415f` + `patches/llama.cpp-36cbf415f-moe-cache-hybrid.patch`, CUDA build for sm_86. Raw output: `results/omarchy-20261022-1357/` (Sage) and `results/omarchy-20261022-1333/` (Bolt).
+
+**Build.** The patch builds with CUDA on 36cbf415f with no change; no warnings in patched files. With `-j 6` and 31 GB RAM, `cc1plus`/`fatbinary` get OOM-killed; `-j 4` or less works.
+
+**Sage-A1.5 Q4_K_M** (`tools/bench_decode.sh`, `--load-mode none`, 3 interleaved repeats, mean):
+
+| config | decode tok/s | spread | E3e (5050 + 7800X3D, 0a1ef30) |
+|---|---|---|---|
+| no cache | 30.4 | 29.8-31.5 | 48.4 |
+| upstream 2048 MiB | 39.0 (1 run failed) | | 35.6 |
+| upstream 5120 MiB | **68.6** | 68.0-69.0 | 56.7 |
+| hybrid 2048 MiB | 22.7 | 17.4-25.9 | 53.3 |
+| hybrid 3072 MiB | 26.7 | 20.6-32.3 | 57.7 |
+| hybrid 5120 MiB | 32.5 | 28.4-35.4 | 61.5 |
+
+KLD against experts-on-CPU: upstream 5120 0.0068, hybrid 5120 0.0073 (+8%, inside the 10% bar).
+
+**Nemotron 3.5 Bolt 74B-A9B 24GB** (official IQ2_XXS QAT file, 17 GB of experts, 40 MoE layers of 240-496 experts, top-9, ungated latent experts; see `research/nemotron-bolt.md`):
+
+| config | decode tok/s | spread |
+|---|---|---|
+| everything on GPU (llama-bench tg128) | 75.7 | ±0.1 |
+| no cache | 17.2 | 16.0-18.7 |
+| upstream 2048 MiB | 40.6 | 40.5-40.7 |
+| upstream 5120 MiB | **52.0** | 51.9-52.1 |
+| hybrid 2048 MiB | 18.5 (1 run failed) | 16.3-20.8 |
+| hybrid 3072 MiB | 19.4 | 11.8-24.6 |
+| hybrid 5120 MiB | 21.4 | 17.8-25.2 |
+
+KLD: upstream 5120 0.0019, hybrid 5120 0.0014. The hybrid path works on a new architecture (per-layer expert counts, ungated up/down experts, LatentMoE): output is correct and the cache splits into 12 layout groups (one group with a single layer and 20 slots at 2048 MiB).
+
+**Verdict.** The rebase is correct (builds, runs, same KLD as upstream on both models), but **on this machine the hybrid is slower than upstream by 2.1x (Sage) and 2.4x (Bolt) and no better than no cache**, and it is unstable (spread up to 2x between identical runs). This is the opposite of E3d/E3e. It is not yet known whether this is the machine or the rebase: the 0a1ef30 run on this box was not done (the build OOM'd and the owner moved the comparison to the 7800X3D). Per the handoff, no tuning was attempted.
+
+Leads, not tested:
+- This box favours uploads: PCIe 3.0 x16 (~13 GB/s nominal, upstream fits about 0.079 ms/MiB on Bolt) against a weak CPU path (Bolt: about 0.115 ms per IQ2_XXS expert, from no-cache 17.2 vs all-GPU 75.7 tok/s; 3-4x the E3e per-expert cost for half the bytes). The break-even rule from E3e (hit rate >= 1 - PCIe_BW/RAM_BW) already says the hybrid should lose when PCIe is close to the CPU's effective expert bandwidth.
+- Even with those costs the timeline predicts about 36 tok/s for hybrid 5120 on Bolt, against 21 measured. Suspects: background uploads stealing DDR4 bandwidth from the CPU experts (open question), and CPU contention from the production containers. `llama-bench` shows 4 threads at 39.4 tok/s against 6 threads at 26.7 for Sage no-cache, so the default `-t 6` is hit by the other load, and the hybrid's CPU half sits on the critical path.
+- One failed run each for upstream 2048 (Sage) and hybrid 2048 (Bolt); not reproduced in 4 retries, logs not kept (`tools/bench_decode.sh` now keeps them).
+
 ### E4.1 — overlapping the CPU and GPU halves: no gain (2026-10-21, 7800X3D)
 
 In decode each hybrid layer has three scheduler splits: CUDA (slot-map lookup, where the copy callback synchronizes to read the selected experts, then the GPU experts), CPU (its only input is `attn_post_norm`, 8 KiB, and it runs up/gate/down of the CPU experts) and CUDA (multiply by the router weights, add). The CPU split copies its input with `ggml_backend_synchronize(CUDA)`, so it waits for the GPU experts that were just queued. A scheduler change (env `GGML_SCHED_INPUT_EVENTS=1`) recorded an event after every split and waited only for the event of the split that produced the input. It works, but `tools/bench_decode.sh`, 3 interleaved repeats, shows no gain:
