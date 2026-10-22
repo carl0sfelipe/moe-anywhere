@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# One-shot E3 lab run on a new machine: system info, llama.cpp 0a1ef30 + hybrid patch, Sage-A1.5, benchmarks.
+# One-shot E3 lab run on a new machine: system info, llama.cpp + hybrid patch, Sage-A1.5, benchmarks.
 # Results land in results/<host>-<date>/ (summary.tsv plus raw logs); send that folder back.
 #
 # Usage (from a clone of moe-anywhere):  bash tools/lab_run.sh
-# Env: MODELS (~/models/Sage-A1.5), LLAMA_DIR (~/src/llama.cpp-moe), REPS (3), KLD (0; 1 = also run the KL check)
+# Env: MODELS (~/models/Sage-A1.5), LLAMA_DIR (~/src/llama.cpp-moe), LLAMA_BASE (36cbf415f; needs patches/llama.cpp-<base>-moe-cache-hybrid.patch),
+#      REPS (3), KLD (0; 1 = also run the KL check)
 # Needs: git, cmake, a CUDA toolkit with nvcc, nvidia-smi, python3, and `hf` (pip install -U huggingface_hub).
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 models=${MODELS:-$HOME/models/Sage-A1.5}
 llama=${LLAMA_DIR:-$HOME/src/llama.cpp-moe}
 reps=${REPS:-3}
+base=${LLAMA_BASE:-36cbf415f}
+patch=$root/patches/llama.cpp-$base-moe-cache-hybrid.patch
 out=$root/results/$(hostname)-$(date +%Y%m%d-%H%M)
 mkdir -p "$out"
 model=$models/Sage-A1.5-Q4_K_M.gguf
@@ -28,13 +31,14 @@ echo "== system info"
     nvidia-smi --query-gpu=name,driver_version,memory.total,pcie.link.gen.max,pcie.link.width.max,compute_cap --format=csv
 } | tee "$out/system.txt"
 
-echo "== llama.cpp 0a1ef30 + moe-anywhere hybrid patch"
+echo "== llama.cpp $base + moe-anywhere hybrid patch"
 if [ ! -d "$llama" ]; then
     git clone https://github.com/ggml-org/llama.cpp "$llama"
 fi
-git -C "$llama" fetch -q origin 0a1ef30 2>/dev/null || true
-git -C "$llama" checkout -q -f 0a1ef30
-git -C "$llama" apply "$root/patches/llama.cpp-0a1ef30-moe-cache-hybrid.patch"
+git -C "$llama" fetch -q origin "$base" 2>/dev/null || true
+git -C "$llama" checkout -q -f "$base"
+git -C "$llama" apply "$patch"
+echo "base: $base" >>"$out/system.txt"
 arch=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d '.')
 cmake -S "$llama" -B "$llama/build" -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="$arch" -DCMAKE_BUILD_TYPE=Release >"$out/cmake.log" 2>&1
 cmake --build "$llama/build" -j "$(nproc)" --target llama-completion llama-bench llama-perplexity >"$out/build.log" 2>&1
@@ -75,5 +79,5 @@ if [ "${KLD:-0}" = 1 ]; then
     rm -f "$out/base.kld"
 fi
 
-git -C "$llama" checkout -q -f 0a1ef30  # leave the tree clean
+git -C "$llama" checkout -q -f "$base"  # leave the tree clean
 echo "== done: $out"
