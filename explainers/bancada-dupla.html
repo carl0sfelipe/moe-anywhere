@@ -1,4 +1,4 @@
-<title>Bancada Dupla MoE</title>
+<title>MoE Dual Bench</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -64,39 +64,39 @@ body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); m
 </style>
 
 <div class="bar">
-  <button id="play" aria-pressed="true">Pausar</button>
-  <button id="restart">Recomeçar</button>
+  <button id="play" aria-pressed="true">Pause</button>
+  <button id="restart">Restart</button>
   <button id="wide" aria-pressed="true">16:9</button>
   <button id="tall" aria-pressed="false">9:16</button>
-  <span>Grave só o quadro. Espaço pausa, R recomeça. Loop de ~34 s.</span>
+  <span>Record only the frame. Space pauses, R restarts. ~34 s loop.</span>
 </div>
 <div class="holder">
 <div class="frame" id="frame">
-  <canvas id="c3d" aria-label="Duas bancadas 3D sincronizadas: llama.cpp padrão e cache híbrido"></canvas>
+  <canvas id="c3d" aria-label="Two synced 3D benches: stock llama.cpp and the hybrid cache"></canvas>
   <div class="halves">
     <div class="half before">
-      <div class="top"><div><div class="tag">Antes · llama.cpp padrão</div><div class="title">Todo expert roda na CPU</div></div><div class="speed">48,4<small>tok/s medido</small></div></div>
+      <div class="top"><div><div class="tag">Before · stock llama.cpp</div><div class="title">Every expert runs on the CPU</div></div><div class="speed">48.4<small>tok/s measured</small></div></div>
       <div></div>
       <div class="bottom"><div class="cap" id="capA">…</div><div class="split" id="splitA"></div><div class="count"><span>tokens <b id="nA">0</b>/24</span><div class="prog"><div id="pA"></div></div><span id="wA"></span></div></div>
     </div>
     <div class="half after">
-      <div class="top"><div><div class="tag">Depois · híbrido moe-anywhere</div><div class="title">Cache na VRAM + CPU só no miss</div></div><div class="speed">61,5<small>tok/s medido</small></div></div>
+      <div class="top"><div><div class="tag">After · moe-anywhere hybrid</div><div class="title">VRAM cache, CPU only on a miss</div></div><div class="speed">61.5<small>tok/s measured</small></div></div>
       <div></div>
       <div class="bottom"><div class="cap" id="capB">…</div><div class="split" id="splitB"></div><div class="count"><span>tokens <b id="nB">0</b>/24</span><div class="prog"><div id="pB"></div></div><span id="wB"></span></div></div>
     </div>
   </div>
-  <div class="legend"><span class="slow">CÂMERA LENTA 40×</span><span><i style="background:var(--ok)"></i>expert já na VRAM</span><span><i style="background:var(--before)"></i>calculado na CPU</span><span><i style="background:var(--after)"></i>copiado em segundo plano</span><span><i style="background:var(--fix)"></i>troca GPU↔CPU</span></div>
+  <div class="legend"><span class="slow">SLOW MOTION 40×</span><span><i style="background:var(--ok)"></i>expert already in VRAM</span><span><i style="background:var(--before)"></i>computed on the CPU</span><span><i style="background:var(--after)"></i>copied in the background</span><span><i style="background:var(--fix)"></i>GPU↔CPU hop</span></div>
   <div class="card" id="intro">
     <div class="eyebrow">moe-anywhere · RTX 5050 8 GB · Qwen3.6-35B-A3B</div>
-    <h1>Mesma GPU de 8 GB.<br>Mesmo modelo de 35B.</h1>
-    <p>A cada token, cada uma das 40 camadas escolhe <b>8 de 256 experts</b>. Eles não cabem na VRAM. Veja uma camada, em câmera lenta, nos dois jeitos de rodar.</p>
+    <h1>Same 8 GB GPU.<br>Same 35B model.</h1>
+    <p>For every token, each of the 40 layers picks <b>8 of 256 experts</b>. They don't fit in VRAM. Watch one layer, in slow motion, run both ways.</p>
   </div>
   <div class="card" id="outro">
-    <div class="eyebrow">resultado medido, mesma placa</div>
-    <div class="nums"><span class="a">48,4</span><span class="arr">→</span><span class="b">61,5</span><span style="font:500 .9em var(--f-mono);color:var(--mute)">tok/s</span></div>
-    <div class="gain">+27% sem trocar hardware</div>
-    <p>Os experts mais usados ficam na VRAM. O que falta roda na CPU na hora, sem a GPU esperar o PCIe, e é copiado para a VRAM em segundo plano. Saída igual (KL 0,006).</p>
-    <div class="credits">github.com/carl0sfelipe/moe-anywhere · mesma ideia no llama.cpp PR #27861 e no Fiddler</div>
+    <div class="eyebrow">measured result, same card</div>
+    <div class="nums"><span class="a">48.4</span><span class="arr">→</span><span class="b">61.5</span><span style="font:500 .9em var(--f-mono);color:var(--mute)">tok/s</span></div>
+    <div class="gain">+27% with no new hardware</div>
+    <p>The hottest experts stay in VRAM. A missing one runs on the CPU right away, so the GPU never waits on PCIe, and it is copied to VRAM in the background. Same output (KL 0.006).</p>
+    <div class="credits">github.com/carl0sfelipe/moe-anywhere · same idea in llama.cpp PR #27861 and Fiddler</div>
   </div>
 </div>
 </div>
@@ -110,7 +110,7 @@ const DENSE = 10.25, T_CPU = 0.029, HOP = 0.029, FIX_HYB = 0.09, LAYERS = 40, TO
 const SLOW = 40, GOAL = 24;                   // slow motion factor, tokens in the race
 const T_INTRO = 4.5, T_OUTRO = 7;
 const $ = id => document.getElementById(id);
-const fmt = (x, d = 2) => x.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmt = (x, d = 2) => x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // ---------- routing: Zipf(1.2) popularity + 20% carry-over, ~78% LRU hits at 64 slots ----------
@@ -188,8 +188,8 @@ function newToken(rig, now) {
   const cpuMs = (rig.hybrid ? n : TOPK) * T_CPU, fixMs = rig.hybrid ? FIX_HYB : HOP;
   rig.split = [[DENSE / LAYERS, "#59625f"], [fixMs, "#efb33c"], [cpuMs, "#e48b4e"]];
   rig.capText = rig.hybrid
-    ? (n ? `${TOPK - n} de 8 já na VRAM. ${n} ${n > 1 ? "rodam" : "roda"} na CPU (${fmt(cpuMs)} ms) e ${n > 1 ? "seguem" : "segue"} para a VRAM em segundo plano.` : "8 de 8 já na VRAM. A CPU só paga a troca fixa.")
-    : `8 de 8 na CPU: ${fmt(cpuMs)} ms nesta camada, a cada token. A VRAM fica sem experts.`;
+    ? (n ? `${TOPK - n} of 8 already in VRAM. ${n} ${n > 1 ? "run" : "runs"} on the CPU (${fmt(cpuMs)} ms) and ${n > 1 ? "move" : "moves"} to VRAM in the background.` : "8 of 8 already in VRAM. The CPU only pays the fixed hop.")
+    : `8 of 8 on the CPU: ${fmt(cpuMs)} ms in this layer, every token. VRAM holds no experts.`;
 }
 function slotIndex(rig, e) { return rig.cache ? rig.cache.lru.indexOf(e) : -1; }
 function drawRig(rig, now) {
@@ -255,7 +255,7 @@ function setText(rig, side, raceT) {
   $("n" + side).textContent = rig.tokens;
   $("p" + side).style.width = (rig.tokens / GOAL * 100) + "%";
   const done = rig.tokens >= GOAL;
-  $("w" + side).textContent = done ? "✓ " + fmt(GOAL / RATE[side] * 1000 / 1000, 2) + " s reais" : "";
+  $("w" + side).textContent = done ? "✓ " + fmt(GOAL / RATE[side] * 1000 / 1000, 2) + " s real time" : "";
   $("w" + side).className = done ? "win" : "";
 }
 function loop(now) {
@@ -276,7 +276,7 @@ function loop(now) {
   }
   requestAnimationFrame(loop);
 }
-function setPlaying(p) { playing = p; $("play").textContent = p ? "Pausar" : "Tocar"; $("play").setAttribute("aria-pressed", p); }
+function setPlaying(p) { playing = p; $("play").textContent = p ? "Pause" : "Play"; $("play").setAttribute("aria-pressed", p); }
 $("play").onclick = () => setPlaying(!playing);
 $("restart").onclick = () => { t = 0; lastT = -1; resetRace(); setPlaying(true); };
 function setShape(tall) { frame.classList.toggle("tall", tall); $("tall").setAttribute("aria-pressed", tall); $("wide").setAttribute("aria-pressed", !tall); layout(); try { localStorage.setItem("bd-shape", tall ? "tall" : "wide"); } catch (e) {} }
