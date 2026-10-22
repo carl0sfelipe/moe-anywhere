@@ -1,0 +1,588 @@
+<title>Oficina de Experts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: service-manual page. 3D bench (scene + console), side-by-side race, physics cards, sources. */
+:root {
+  --bg: #edf0ee; --surface: #ffffff; --sunk: #e3e7e5; --ink: #15191b; --mute: #59625f; --line: #d2d8d5;
+  --gpu: #137a82;   /* VRAM / GPU work */
+  --cpu: #b45d24;   /* CPU work */
+  --hot: #cf3b26;   /* GPU waiting on PCIe */
+  --warn: #b77d0c; --ok: #2f8a4c; --stage: #dfe4e1; --cap: #15191b; --capink: #e5e9e7;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1112; --surface: #161a1c; --sunk: #111517; --ink: #e5e9e7; --mute: #94a09c; --line: #283032;
+  --gpu: #4cc0c3; --cpu: #e48b4e; --hot: #ff6b52; --warn: #efb33c; --ok: #5cc77d; --stage: #121618; --cap: #050707; --capink: #e5e9e7;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1112; --surface: #161a1c; --sunk: #111517; --ink: #e5e9e7; --mute: #94a09c; --line: #283032;
+  --gpu: #4cc0c3; --cpu: #e48b4e; --hot: #ff6b52; --warn: #efb33c; --ok: #5cc77d; --stage: #121618; --cap: #050707; --capink: #e5e9e7;
+  color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--f-body); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; display: grid; gap: 44px; }
+h1, h2, h3 { font-family: var(--f-display); font-stretch: 72%; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(38px, 7vw, 76px); line-height: .95; font-weight: 800; }
+h2 { font-size: clamp(26px, 4vw, 38px); font-weight: 750; line-height: 1; }
+h3 { font-size: 20px; font-weight: 700; }
+.eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.lead { max-width: 64ch; font-size: 17px; color: var(--ink); margin: 14px 0 0; }
+.lead b { font-weight: 600; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+header { display: grid; gap: 10px; }
+.sechead { display: grid; gap: 8px; margin-bottom: 16px; }
+.sechead p { margin: 0; max-width: 70ch; color: var(--mute); }
+
+/* bench */
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 360px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.stage { position: relative; background: var(--stage); min-height: 460px; min-width: 0; }
+.stage canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; }
+.labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lbl { position: absolute; transform: translate(10px, -50%); font: 500 11px var(--f-mono); color: var(--ink); white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.lbl::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); margin-left: -13px; }
+.lbl span { background: var(--surface); border: 1px solid var(--line); padding: 2px 6px; border-radius: 3px; }
+.hud { position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; gap: 6px; pointer-events: none; }
+.hudtxt { font: 500 12px var(--f-mono); background: var(--cap); color: var(--capink); padding: 7px 10px; border-radius: 4px; width: fit-content; max-width: 100%; }
+.stagebar { height: 12px; display: flex; border-radius: 3px; overflow: hidden; background: var(--sunk); }
+.legend { position: absolute; top: 12px; left: 12px; display: flex; flex-wrap: wrap; gap: 10px; font: 500 11px var(--f-mono); color: var(--mute); pointer-events: none; max-width: calc(100% - 24px); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.console { padding: 18px; display: grid; gap: 16px; align-content: start; border-left: 1px solid var(--line); min-width: 0; }
+.ctl { display: grid; gap: 6px; }
+.ctl > label, .ctl > .eyebrow { display: flex; justify-content: space-between; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { font: 600 12px var(--f-body); border: 0; background: var(--surface); color: var(--ink); padding: 8px 4px; cursor: pointer; border-left: 1px solid var(--line); }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--gpu); outline-offset: 2px; }
+input[type=range] { width: 100%; accent-color: var(--gpu); }
+.big { font: 800 64px/0.9 var(--f-display); font-stretch: 70%; font-variant-numeric: tabular-nums; }
+.big small { font: 500 14px var(--f-mono); color: var(--mute); margin-left: 6px; }
+.chip { font: 600 11px var(--f-mono); padding: 3px 8px; border-radius: 99px; border: 1px solid currentColor; width: fit-content; }
+.chip.ok { color: var(--ok); } .chip.att { color: var(--warn); } .chip.crit { color: var(--hot); }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 13px; }
+.kv dt { color: var(--mute); } .kv dd { margin: 0; font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.split { display: flex; height: 18px; border-radius: 3px; overflow: hidden; background: var(--sunk); }
+.split div { transition: flex-grow .4s; min-width: 0; }
+.splitlg { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 500 11px var(--f-mono); color: var(--mute); }
+.splitlg i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+.ladder { display: grid; gap: 5px; }
+.rung { display: grid; grid-template-columns: 96px 1fr 44px; gap: 8px; align-items: center; font-size: 12px; }
+.rung .bar { height: 8px; background: var(--sunk); border-radius: 2px; overflow: hidden; }
+.rung .bar div { height: 100%; background: var(--mute); transition: width .4s; }
+.rung.on .bar div { background: var(--ink); } .rung.on { font-weight: 600; }
+.rung span:last-child { font-family: var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.presets { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { font: 600 12px var(--f-body); border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 7px 12px; border-radius: 4px; cursor: pointer; }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.note { font-size: 12px; color: var(--mute); margin: 0; }
+
+/* side by side */
+.race { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.caption { background: var(--cap); color: var(--capink); font: 500 13px/1.45 var(--f-mono); padding: 12px 16px; min-height: 64px; }
+.panes { display: grid; grid-template-columns: 1fr 1fr; }
+.pane { padding: 16px; display: grid; gap: 10px; min-width: 0; }
+.pane + .pane { border-left: 1px solid var(--line); }
+.panehead { display: flex; justify-content: space-between; align-items: end; gap: 8px; flex-wrap: wrap; }
+.pane canvas { width: 100%; height: 230px; display: block; }
+.racebar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); }
+.chart { padding: 0 16px 16px; }
+.chart canvas { width: 100%; height: 170px; display: block; }
+
+/* cards */
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 8px; align-content: start; }
+.card p { margin: 0; font-size: 14px; }
+.card .f { font: 500 12px var(--f-mono); background: var(--sunk); padding: 7px 9px; border-radius: 3px; font-variant-numeric: tabular-nums; overflow-x: auto; }
+.card.ignore { border-style: dashed; }
+footer { font-size: 13px; color: var(--mute); display: grid; gap: 6px; }
+footer ol { margin: 0; padding-left: 20px; display: grid; gap: 3px; }
+footer a { color: var(--ink); }
+.help { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; font-size: 13px; box-shadow: 0 8px 30px rgb(0 0 0 / .18); z-index: 5; max-width: 300px; }
+.help kbd { font: 500 11px var(--f-mono); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; }
+@media (max-width: 900px) {
+  .bench { grid-template-columns: 1fr; }
+  .console { border-left: 0; border-top: 1px solid var(--line); }
+  .stage { min-height: 380px; }
+  .cards { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 620px) {
+  .panes { grid-template-columns: 1fr; }
+  .pane + .pane { border-left: 0; border-top: 1px solid var(--line); }
+  .cards { grid-template-columns: 1fr; }
+  .big { font-size: 52px; }
+  .lbl { display: none; }
+}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">moe-anywhere · laboratório de offload de experts</div>
+  <h1>Oficina de experts</h1>
+  <p class="lead">Um modelo MoE de 35B parâmetros escolhe <b>8 de 256 experts</b> por camada a cada token. Numa GPU de 8 GB só cabe uma fração deles. Quando o expert escolhido não está na VRAM, alguém tem que pagar: <b>o cache do llama.cpp para a GPU e copia o expert pelo PCIe</b>; <b>o híbrido roda esse expert na CPU na hora</b> e copia para a VRAM depois, sem ninguém esperando. Um miss no PCIe custa cerca de 0,15 ms; na CPU, 0,03 ms.</p>
+</header>
+
+<section id="bancada">
+  <div class="sechead">
+    <div class="eyebrow">01 · bancada</div>
+    <h2>Siga uma camada, token a token</h2>
+    <p>A cena mostra uma das 40 camadas. Verde: o expert já estava na VRAM. Laranja: rodou na CPU. Vermelho: a GPU parou esperando a cópia. Troque o desenho e o tamanho do cache no console.</p>
+  </div>
+  <div class="bench">
+    <div class="stage" id="stage">
+      <canvas id="c3d" aria-label="Cena 3D: GPU com cache de experts à esquerda, PCIe no meio, RAM e CPU à direita"></canvas>
+      <div class="labels" id="labels"></div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>hit na VRAM</span><span><i style="background:var(--cpu)"></i>roda na CPU</span><span><i style="background:var(--hot)"></i>GPU esperando PCIe</span><span><i style="background:var(--gpu)"></i>cópia em segundo plano</span></div>
+      <div class="hud"><div class="hudtxt" id="hudtxt">…</div><div class="stagebar" id="stagebar"></div></div>
+    </div>
+    <div class="console">
+      <div class="ctl"><div class="eyebrow"><span>Desenho</span><span>1 · 2 · 3</span></div>
+        <div class="seg" id="segDesign">
+          <button id="d-nocache" data-v="nocache">Sem cache</button>
+          <button id="d-up" data-v="up">Cache llama.cpp</button>
+          <button id="d-hyb" data-v="hyb">Híbrido</button>
+        </div></div>
+      <div class="ctl"><div class="eyebrow"><span>Máquina</span></div>
+        <div class="seg" id="segMachine">
+          <button id="m-A" data-v="A">i9 + dock</button>
+          <button id="m-B" data-v="B">7800X3D</button>
+        </div></div>
+      <div class="ctl"><label for="mib" class="eyebrow"><span>Cache na VRAM</span><span class="mono" id="mibv">5120 MiB</span></label>
+        <input type="range" id="mib" min="2048" max="6144" step="512" value="5120"></div>
+      <div class="presets"><button class="btn" id="pBefore">Antes: llama.cpp puro</button><button class="btn primary" id="pAfter">Depois: híbrido 5 GB</button></div>
+      <div>
+        <div class="big" id="toks">61,5<small>tok/s</small></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><span class="chip ok" id="chip">modelo</span><span class="chip" id="measured" style="color:var(--mute)">medido</span></div>
+      </div>
+      <div class="ctl"><div class="eyebrow"><span>Onde vai o tempo de 1 token</span><span class="mono" id="msTok">16,3 ms</span></div>
+        <div class="split" id="split"></div>
+        <div class="splitlg"><span><i style="background:var(--mute)"></i>atenção e pesos densos</span><span><i style="background:var(--hot)"></i>espera PCIe</span><span><i style="background:var(--cpu)"></i>experts na CPU</span><span><i style="background:var(--warn)"></i>troca GPU↔CPU</span></div></div>
+      <dl class="kv">
+        <dt>experts na VRAM (hit)</dt><dd id="kvHit">76%</dd>
+        <dt>copiado com a GPU parada</dt><dd id="kvUp">0 MiB/token</dd>
+        <dt>slots por camada</dt><dd id="kvSlots">67 de 256</dd>
+        <dt>custo de 1 miss</dt><dd id="kvMiss">0,03 ms (CPU)</dd>
+      </dl>
+      <div class="ladder" id="ladder"></div>
+      <p class="note" id="vramNote"></p>
+    </div>
+  </div>
+</section>
+
+<section id="lado">
+  <div class="sechead">
+    <div class="eyebrow">02 · lado a lado</div>
+    <h2>Mesmos tokens, dois jeitos de pagar o miss</h2>
+    <p>As duas pistas recebem a mesma sequência de experts (roteamento sintético com a localidade medida: cerca de 79% de acerto com 64 slots). O cache usa o tamanho escolhido na bancada.</p>
+  </div>
+  <div class="race">
+    <div class="caption" id="caption">Aperte “+1 token” ou “Simular 60”.</div>
+    <div class="panes">
+      <div class="pane">
+        <div class="panehead"><div><div class="eyebrow">cache llama.cpp (upstream)</div><h3>Miss = GPU espera</h3></div><div class="big" id="rUp" style="font-size:48px">–<small>tok/s</small></div></div>
+        <canvas id="cvUp" aria-label="Pista do cache upstream"></canvas>
+        <div class="mono note" id="rUpHit">hit –</div>
+      </div>
+      <div class="pane">
+        <div class="panehead"><div><div class="eyebrow">híbrido (moe-anywhere)</div><h3>Miss = CPU resolve</h3></div><div class="big" id="rHyb" style="font-size:48px">–<small>tok/s</small></div></div>
+        <canvas id="cvHyb" aria-label="Pista do cache híbrido"></canvas>
+        <div class="mono note" id="rHybHit">hit –</div>
+      </div>
+    </div>
+    <div class="racebar"><button class="btn primary" id="step1">+1 token</button><button class="btn" id="step60">Simular 60</button><button class="btn" id="raceReset">Recomeçar</button><span class="note">tok/s médio dos últimos 10 tokens, modelo de custo da máquina escolhida</span></div>
+    <div class="chart"><canvas id="cvChart" aria-label="Gráfico de tok/s por token nas duas pistas"></canvas></div>
+  </div>
+</section>
+
+<section id="fisica">
+  <div class="sechead"><div class="eyebrow">03 · por que funciona</div><h2>A conta por trás do ganho</h2></div>
+  <div class="cards">
+    <div class="card"><h3>Um miss pesa 1,9 MiB</h3><p>Cada expert (gate, up e down em Q4_K/Q6_K) tem cerca de 1,9 MiB. Copiar isso pelo PCIe x8 leva mais tempo que calcular o expert na CPU, que só lê os pesos já em RAM e devolve 8 KB de ativação.</p><div class="f">PCIe: 1,9 × 0,076 = 0,15 ms · CPU: 0,03 ms</div></div>
+    <div class="card"><h3>O cache do llama.cpp não sobrepõe</h3><p>Medido: o tempo do token cresce em linha reta com o que é copiado. Cada MiB copiado soma ao tempo do token, porque a GPU espera a cópia antes de seguir.</p><div class="f">t = 10,25 ms + 0,076 ms × MiB copiado</div></div>
+    <div class="card"><h3>Poucos experts fazem a maioria</h3><p>Tokens vizinhos repetem experts. Com 64 dos 256 por camada na VRAM, um LRU simples acerta 79% das escolhas. É isso que torna qualquer cache útil.</p><div class="f">64/256 slots → 79% hits · 2,86 de 8 repetem</div></div>
+    <div class="card"><h3>O híbrido nunca espera</h3><p>Misses rodam na CPU e uma thread copia o expert em pedaços de 64 KiB, um por vez, para não bloquear o único motor de cópia da GPU. O expert passa a valer na VRAM no token seguinte.</p><div class="f">5 GB: 48,4 → 61,5 tok/s (+27%)</div></div>
+    <div class="card"><h3>O que sobra é latência fixa</h3><p>Cada camada híbrida troca de GPU para CPU e volta. Isso custa cerca de 0,09 ms por camada, mesmo sem trabalho. Tentar sobrepor CPU e GPU não ganhou nada; o próximo passo é cortar trocas.</p><div class="f">40 camadas × 0,09 ms ≈ 3,6 ms por token</div></div>
+    <div class="card ignore"><h3>O que este modelo ignora</h3><p>A bancada usa um modelo de custo calibrado (erro de 2–8% contra o medido). A pista lado a lado usa roteamento sintético, LRU por camada e não o SLRU real, e trata o upload em segundo plano como pronto no token seguinte. Prefill e contextos longos ficam de fora.</p><div class="f">números medidos: chip “medido” na bancada</div></div>
+  </div>
+</section>
+
+<footer>
+  <div class="eyebrow">fontes</div>
+  <ol>
+    <li>Medições E3b–E4.2, Sage-A1.5 Q4_K_M (Qwen3.6-35B-A3B), RTX 5050 8 GB, llama.cpp 0a1ef30: <a href="https://github.com/carl0sfelipe/moe-anywhere/blob/main/research/experiments.md" target="_blank" rel="noopener">research/experiments.md</a></li>
+    <li>Traces de roteamento: <a href="https://huggingface.co/datasets/carlosfelipe/moe-anywhere-routing-traces" target="_blank" rel="noopener">huggingface.co/datasets/carlosfelipe/moe-anywhere-routing-traces</a></li>
+    <li>Cache upstream <code>--moe-cache-mib</code>: <a href="https://github.com/ggml-org/llama.cpp/pull/29887" target="_blank" rel="noopener">llama.cpp PR #29887</a>. Mesmo desenho híbrido, feito antes e de forma independente: <a href="https://github.com/ggml-org/llama.cpp/pull/27861" target="_blank" rel="noopener">PR #27861</a> e <a href="https://arxiv.org/abs/2402.07033" target="_blank" rel="noopener">Fiddler</a></li>
+    <li>Cores falsas: verde, laranja e vermelho marcam onde o trabalho acontece, não temperatura. Teclas: 1–3 desenho, ←/→ cache, Espaço pausa, R recomeça, N rótulos, ? ajuda.</li>
+  </ol>
+</footer>
+</div>
+<div class="help" id="help" hidden><b>Atalhos</b><br><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> desenho · <kbd>←</kbd> <kbd>→</kbd> cache · <kbd>Espaço</kbd> pausa · <kbd>R</kbd> recomeça · <kbd>N</kbd> rótulos · <kbd>?</kbd> fecha</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+"use strict";
+// ---------- model ----------
+// Calibrated per machine from measurements (experiments.md E3b-E3e).
+const LAYERS = 40, TOPK = 8, MIB_PER_EXPERT = 1.9;
+const MACH = {
+  A: { name: "i9-12900HK + dock", dense: 10.9, msPerMiB: 0.098, nocache: 45.5, fixedHyb: 0.12,
+       meas: { nocache: 45.5, up2048: 30.4, up5120: 50.9, hyb2048: 44.2, hyb3072: 50.7, hyb5120: 55.1 } },
+  B: { name: "Ryzen 7 7800X3D", dense: 10.25, msPerMiB: 0.076, nocache: 48.4, fixedHyb: 0.09,
+       meas: { nocache: 48.4, up2048: 35.6, up5120: 56.7, hyb2048: 53.3, hyb3072: 57.7, hyb5120: 61.5 } }
+};
+const HOP = 0.029; // GPU->CPU->GPU round trip for experts-on-CPU, ms per layer
+// hit rate vs cache MiB (measured where available, simulated/interpolated otherwise)
+const HIT_UP = [[2048, .604], [3072, .70], [4096, .782], [5120, .837], [6144, .87]];
+const HIT_HYB = [[2048, .565], [3072, .655], [4096, .71], [5120, .76], [6144, .80]];
+const interp = (t, x) => { for (let i = 1; i < t.length; i++) if (x <= t[i][0]) { const [a, b] = [t[i - 1], t[i]]; return a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0]); } return t[t.length - 1][1]; };
+function tCpuExpert(m) { // per-expert CPU cost from the no-cache measurement: dense + 40*(hop + 8*t)
+  return ((1000 / m.nocache - m.dense) / LAYERS - HOP) / TOPK;
+}
+function solve(s) {
+  const m = MACH[s.machine], tc = tCpuExpert(m);
+  const out = { dense: m.dense, wait: 0, cpu: 0, hop: 0, hit: 0, upMiB: 0, missCost: 0 };
+  if (s.design === "nocache") {
+    out.cpu = LAYERS * TOPK * tc; out.hop = LAYERS * HOP; out.missCost = tc;
+  } else if (s.design === "up") {
+    out.hit = interp(HIT_UP, s.mib);
+    out.upMiB = LAYERS * TOPK * (1 - out.hit) * MIB_PER_EXPERT;   // t = dense + MiB * ms/MiB, no overlap
+    out.wait = out.upMiB * m.msPerMiB; out.missCost = MIB_PER_EXPERT * m.msPerMiB;
+  } else {
+    out.hit = interp(HIT_HYB, s.mib);
+    out.cpu = LAYERS * TOPK * (1 - out.hit) * tc; out.hop = LAYERS * m.fixedHyb; out.missCost = tc;
+  }
+  out.ms = out.dense + out.wait + out.cpu + out.hop;
+  out.toks = 1000 / out.ms;
+  out.slots = Math.floor(s.mib / (LAYERS * MIB_PER_EXPERT));
+  const key = s.design === "nocache" ? "nocache" : s.design + s.mib;
+  out.measured = m.meas[key];
+  return out;
+}
+
+// ---------- state & UI ----------
+const S = { design: "hyb", machine: "B", mib: 5120, labels: true, paused: false };
+try { const v = JSON.parse(localStorage.getItem("oficina-experts") || "null"); if (v) Object.assign(S, v, { paused: false }); } catch (e) {}
+const $ = id => document.getElementById(id);
+const fmt = (x, d = 1) => x.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function update() {
+  const r = solve(S);
+  for (const b of $("segDesign").children) b.setAttribute("aria-pressed", b.dataset.v === S.design);
+  for (const b of $("segMachine").children) b.setAttribute("aria-pressed", b.dataset.v === S.machine);
+  $("mib").value = S.mib; $("mib").disabled = S.design === "nocache";
+  $("mibv").textContent = S.design === "nocache" ? "sem cache" : S.mib + " MiB";
+  $("toks").innerHTML = fmt(r.toks) + "<small>tok/s</small>";
+  $("msTok").textContent = fmt(r.ms) + " ms";
+  const base = MACH[S.machine].nocache, gain = r.toks / base - 1;
+  const chip = $("chip");
+  chip.className = "chip " + (S.design === "nocache" ? "att" : gain > 0.05 ? "ok" : gain > -0.05 ? "att" : "crit");
+  chip.textContent = S.design === "nocache" ? "linha de base" : (gain >= 0 ? "+" : "") + fmt(gain * 100, 0) + "% vs sem cache";
+  $("measured").textContent = r.measured ? "medido: " + fmt(r.measured) + " tok/s" : "sem medição neste ponto";
+  const parts = [[r.dense, "--mute"], [r.wait, "--hot"], [r.cpu, "--cpu"], [r.hop, "--warn"]];
+  $("split").innerHTML = parts.map(([v, c]) => `<div style="flex-grow:${v};background:var(${c})" title="${fmt(v, 2)} ms"></div>`).join("");
+  $("kvHit").textContent = S.design === "nocache" ? "0% (tudo na CPU)" : fmt(r.hit * 100, 0) + "%";
+  $("kvUp").textContent = fmt(r.upMiB, 0) + " MiB/token";
+  $("kvSlots").textContent = S.design === "nocache" ? "–" : r.slots + " de 256";
+  $("kvMiss").textContent = fmt(r.missCost, 2) + " ms " + (S.design === "up" ? "(PCIe, GPU parada)" : "(CPU)");
+  const rows = [["nocache", "Sem cache"], ["up", "llama.cpp"], ["hyb", "Híbrido"]].map(([d, n]) => [d, n, solve({ ...S, design: d }).toks]);
+  const mx = Math.max(...rows.map(x => x[2]));
+  $("ladder").innerHTML = rows.map(([d, n, v]) => `<div class="rung${d === S.design ? " on" : ""}"><span>${n}</span><div class="bar"><div style="width:${v / mx * 100}%"></div></div><span>${fmt(v)}</span></div>`).join("");
+  $("vramNote").textContent = S.design !== "nocache" && S.mib >= 5120 ? "Atenção: na RTX 5050, 5 GB de cache não deixam VRAM para o prefill de um prompt de ~1.500 tokens (crash medido no E4.2)." : "";
+  try { localStorage.setItem("oficina-experts", JSON.stringify({ design: S.design, machine: S.machine, mib: S.mib, labels: S.labels })); } catch (e) {}
+  scene3d.apply();
+  race.resize();
+}
+$("segDesign").addEventListener("click", e => { const v = e.target.dataset.v; if (v) { S.design = v; update(); } });
+$("segMachine").addEventListener("click", e => { const v = e.target.dataset.v; if (v) { S.machine = v; update(); } });
+$("mib").addEventListener("input", e => { S.mib = +e.target.value; update(); race.reset(); });
+$("pBefore").onclick = () => { S.design = "nocache"; update(); };
+$("pAfter").onclick = () => { S.design = "hyb"; S.mib = 5120; update(); race.reset(); };
+
+// ---------- routing generator (same stream for every consumer) ----------
+function rng(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+// Zipf(1.2) popularity over 256 experts + 20% carry-over from the previous token: ~78% LRU hits at 64 slots
+function makeRouter(seed) {
+  const r = rng(seed), w = [], perm = [...Array(256).keys()];
+  for (let i = 255; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
+  let tot = 0; for (let i = 0; i < 256; i++) { w.push(1 / Math.pow(i + 1, 1.2)); tot += w[i]; }
+  let prev = [];
+  return () => {
+    const s = new Set();
+    for (const e of prev) if (s.size < TOPK && r() < 0.2) s.add(e);
+    while (s.size < TOPK) { let u = r() * tot, i = 0; while (u > w[i]) { u -= w[i]; i++; } s.add(perm[i]); }
+    prev = [...s]; return prev;
+  };
+}
+// LRU cache of one layer. Hybrid: misses are admitted in the background and only count from the next token on.
+function makeCache(slots) {
+  const lru = [], pending = new Set();
+  return {
+    lru, pending,
+    has: e => lru.includes(e) && !pending.has(e),
+    step(ids, hybrid) {
+      for (const e of pending) pending.delete(e);
+      const hits = [], misses = [];
+      for (const e of ids) {
+        if (lru.includes(e)) { hits.push(e); lru.splice(lru.indexOf(e), 1); lru.push(e); }
+        else { misses.push(e); }
+      }
+      for (const e of misses) {
+        if (slots <= 0) continue;
+        lru.push(e); if (hybrid) pending.add(e);
+        while (lru.length > slots) { const k = lru.findIndex(x => !ids.includes(x)); lru.splice(k < 0 ? 0 : k, 1); }
+      }
+      return { hits, misses };
+    }
+  };
+}
+
+// ---------- 3D bench ----------
+const scene3d = (() => {
+  const canvas = $("c3d"), stage = $("stage");
+  const R = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  R.setPixelRatio(Math.min(devicePixelRatio, 2)); R.outputEncoding = THREE.sRGBEncoding;
+  const scene = new THREE.Scene();
+  const setBg = () => R.setClearColor(new THREE.Color(css("--stage") || "#dfe4e1"), 1); setBg();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", setBg);
+  const cam = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+  cam.position.set(0, 11.5, 14.5);
+  const ctl = new THREE.OrbitControls(cam, canvas); ctl.target.set(0, 0, 0.4); ctl.enableDamping = true; ctl.maxPolarAngle = 1.35; ctl.minDistance = 8; ctl.maxDistance = 30; ctl.update();
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445055, 0.9));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(5, 12, 8); scene.add(sun);
+  const C = n => new THREE.Color(css(n) || "#888");
+  const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .55, metalness: .1 }, o));
+  const box = (w, h, d, m) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  // GPU board
+  const gpuBoard = box(5.2, .22, 5.2, mat(0x2a3133, { roughness: .7 })); gpuBoard.position.set(-4.6, 0, 0); scene.add(gpuBoard);
+  const gpuDie = box(1.3, .25, .9, mat(0x1c2224, { metalness: .5, roughness: .3 })); gpuDie.position.set(-4.6, .23, -2.0); scene.add(gpuDie);
+  const stallRing = new THREE.Mesh(new THREE.TorusGeometry(1.0, .07, 8, 48), new THREE.MeshBasicMaterial({ color: 0xff4b38, transparent: true, opacity: 0 }));
+  stallRing.rotation.x = Math.PI / 2; stallRing.position.set(-4.6, .4, -2.0); scene.add(stallRing);
+  // CPU + RAM
+  const mb = box(5.6, .18, 5.6, mat(0x2f3537, { roughness: .8 })); mb.position.set(4.6, 0, 0); scene.add(mb);
+  const cpuDie = box(1.4, .3, 1.0, mat(0x3a4245, { metalness: .4, roughness: .35, emissive: 0x000000 })); cpuDie.position.set(4.6, .24, -2.1); scene.add(cpuDie);
+  // PCIe bridge
+  const bridge = box(4.0, .08, .7, mat(0x59625f, { roughness: .5 })); bridge.position.set(0, .05, 1.6); scene.add(bridge);
+  for (let i = 0; i < 8; i++) { const l = box(4.0, .02, .03, mat(0xb08a3a, { metalness: .8, roughness: .3 })); l.position.set(0, .1, 1.35 + i * .07); scene.add(l); }
+  // VRAM slots (max 9x9 = 81), RAM experts 16x16
+  const slotGeo = new THREE.BoxGeometry(.4, .16, .4), expGeo = new THREE.BoxGeometry(.22, .1, .22);
+  const slots = [], ram = [];
+  for (let i = 0; i < 81; i++) { const m = new THREE.Mesh(slotGeo, mat(0x3d4648)); m.position.set(-6.5 + (i % 9) * .48, .2, -1.0 + Math.floor(i / 9) * .48); scene.add(m); slots.push(m); }
+  for (let i = 0; i < 256; i++) { const m = new THREE.Mesh(expGeo, mat(0x6b7572)); m.position.set(2.7 + (i % 16) * .255, .16, -1.25 + Math.floor(i / 16) * .255); scene.add(m); ram.push(m); }
+  const flyGeo = new THREE.BoxGeometry(.3, .14, .3);
+  const fliers = []; // {mesh, from, to, t0, dur, bg}
+  const pulse = new THREE.Mesh(new THREE.SphereGeometry(.12, 12, 12), new THREE.MeshBasicMaterial({ color: 0x4cc0c3 })); scene.add(pulse); pulse.visible = false;
+  // labels
+  const L = [["gpu", new THREE.Vector3(-6.9, .3, 2.3), "GPU · VRAM: cache de experts"], ["die", new THREE.Vector3(-3.9, .4, -2.0), "núcleo da GPU"],
+             ["ram", new THREE.Vector3(6.8, .3, 2.6), "RAM: 256 experts desta camada"], ["cpu", new THREE.Vector3(5.3, .45, -2.1), "CPU"],
+             ["pcie", new THREE.Vector3(1.6, .2, 2.0), "PCIe 4.0 x8"]];
+  const labelsEl = $("labels");
+  for (const l of L) { const d = document.createElement("div"); d.className = "lbl"; d.innerHTML = `<span>${l[2]}</span>`; labelsEl.appendChild(d); l.push(d); }
+
+  let router = makeRouter(11), cache = null, layerStep = 0, lastStep = -1, phase = 0, current = null;
+  const STEP = 2.2; // seconds per animated token at this layer (slow motion)
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const slotOf = e => cache ? cache.lru.indexOf(e) : -1;
+  function newToken() {
+    const ids = router();
+    const res = cache ? cache.step(ids, S.design === "hyb") : { hits: [], misses: ids };
+    current = { ids, ...res, t0: clock };
+    fliers.forEach(f => scene.remove(f.mesh)); fliers.length = 0;
+    const m = MACH[S.machine];
+    if (S.design === "up") {
+      res.misses.forEach((e, i) => addFlier(e, i * 0.32, 0.32, false));
+    } else if (S.design === "hyb") {
+      res.misses.forEach((e, i) => addFlier(e, 0.7 + i * 0.25, 1.1, true));
+    }
+    const n = res.misses.length, r = solve(S);
+    const txt = S.design === "nocache" ? `Os 8 experts rodam na CPU: ${fmt(TOPK * tCpuExpert(m), 2)} ms nesta camada, mais a ida e volta da ativação.`
+      : S.design === "up" ? (n ? `${8 - n} hits na VRAM. ${n} miss${n > 1 ? "es" : ""}: a GPU para e copia ${fmt(n * MIB_PER_EXPERT, 1)} MiB → +${fmt(n * MIB_PER_EXPERT * m.msPerMiB, 2)} ms nesta camada.` : "8 de 8 na VRAM: nenhuma espera.")
+      : (n ? `${8 - n} hits na VRAM. ${n} miss${n > 1 ? "es" : ""} roda${n > 1 ? "m" : ""} na CPU (+${fmt(n * tCpuExpert(m), 2)} ms) e segue${n > 1 ? "m" : ""} para a VRAM em segundo plano.` : "8 de 8 na VRAM: a CPU só paga a troca fixa.");
+    $("hudtxt").textContent = txt;
+    const parts = S.design === "up" ? [[1, "--ok"], [n * MIB_PER_EXPERT * m.msPerMiB / 0.13, "--hot"]] : S.design === "hyb" ? [[1, "--ok"], [n * tCpuExpert(m) / 0.13, "--cpu"], [m.fixedHyb / 0.13, "--warn"]] : [[TOPK * tCpuExpert(m) / 0.13, "--cpu"], [HOP / 0.13, "--warn"]];
+    $("stagebar").innerHTML = parts.map(([v, c]) => `<div style="flex-grow:${v};background:var(${c})"></div>`).join("");
+  }
+  function addFlier(e, t0, dur, bg) {
+    const mm = new THREE.Mesh(flyGeo, new THREE.MeshStandardMaterial({ color: bg ? C("--gpu") : C("--hot"), transparent: true, opacity: bg ? .55 : .95, emissive: bg ? C("--gpu") : C("--hot"), emissiveIntensity: .35 }));
+    mm.visible = false; scene.add(mm);
+    fliers.push({ mesh: mm, e, from: ram[e].position.clone(), t0, dur, bg });
+  }
+  function apply() {
+    const sl = solve(S).slots;
+    cache = S.design === "nocache" ? null : makeCache(sl);
+    router = makeRouter(11);
+    for (let i = 0; i < 40; i++) { const ids = router(); if (cache) cache.step(ids, false); } // warm up
+    if (cache) cache.pending.clear();
+    slots.forEach((m, i) => { m.visible = !!cache && i < sl; });
+    lastStep = -1; layerStep = 0; phase = 0; newToken();
+    labelsEl.hidden = !S.labels;
+  }
+  let clock = 0, prevT = performance.now();
+  const gpuC = C("--gpu"), okC = C("--ok"), cpuC = C("--cpu"), hotC = C("--hot"), idleSlot = new THREE.Color(0x3d4648), idleRam = new THREE.Color(0x6b7572), emptyRes = new THREE.Color(0x2b6f73);
+  function frame(now) {
+    const dt = Math.min(.05, (now - prevT) / 1000); prevT = now;
+    if (!S.paused) phase += dt;
+    if (phase > STEP) { phase = 0; newToken(); }
+    const u = reduce ? STEP : phase;
+    const cur = current || { ids: [], hits: [], misses: [] };
+    // VRAM slots: resident = teal, hit this token = green (pulse)
+    slots.forEach((m, i) => {
+      if (!m.visible) return;
+      const e = cache.lru[i];
+      let c = e === undefined ? idleSlot : emptyRes, em = 0;
+      if (e !== undefined && cur.hits.includes(e)) { c = okC; em = .6 * Math.max(0, 1 - u / 1.6); }
+      if (e !== undefined && cache.pending.has(e)) { const f = fliers.find(f => f.e === e); if (f && u < f.t0 + f.dur) c = idleSlot; }
+      if (S.design === "up" && e !== undefined && cur.misses.includes(e)) { const f = fliers.find(f => f.e === e); if (f && u < f.t0 + f.dur) c = idleSlot; else { c = okC; em = .4; } }
+      m.material.color.copy(c); m.material.emissive.copy(c).multiplyScalar(em);
+      m.position.y = .2 + (cur.hits.includes(e) ? .08 * Math.max(0, 1 - u / 1.2) : 0);
+    });
+    // RAM experts: CPU work in orange
+    const cpuWork = S.design === "nocache" ? cur.ids : S.design === "hyb" ? cur.misses : [];
+    ram.forEach((m, i) => {
+      const on = cpuWork.includes(i), sel = cur.ids.includes(i);
+      m.material.color.copy(on ? cpuC : sel ? new THREE.Color(0x9aa6a2) : idleRam);
+      m.material.emissive.copy(on ? cpuC : new THREE.Color(0)).multiplyScalar(on ? .5 * Math.max(.2, 1 - u / 1.4) : 0);
+      m.position.y = .16 + (on ? .1 * Math.max(0, 1 - u / 1.0) : 0);
+    });
+    const cpuOn = cpuWork.length && u < 1.3;
+    cpuDie.material.emissive.copy(cpuC).multiplyScalar(cpuOn ? .7 : 0);
+    // activation hop GPU -> CPU -> GPU
+    pulse.visible = cpuWork.length > 0 && u < 1.2;
+    if (pulse.visible) { const k = u / 1.2, a = k < .5 ? k * 2 : 2 - k * 2; pulse.position.set(-3.2 + a * 6.4, .5 + Math.sin(a * Math.PI) * .6, 1.6); }
+    // fliers: expert copies over PCIe
+    let stalling = false;
+    for (const f of fliers) {
+      const k = (u - f.t0) / f.dur;
+      f.mesh.visible = k > 0 && k < 1;
+      if (!f.bg && k < 1) stalling = true;
+      if (f.mesh.visible) {
+        const si = slotOf(f.e), to = si >= 0 && slots[si] ? slots[si].position : gpuDie.position;
+        const s = k * k * (3 - 2 * k), p = f.from.clone().lerp(to, s); p.y += Math.sin(s * Math.PI) * 1.8; p.z = THREE.MathUtils.lerp(f.from.z, to.z, s) + Math.sin(s * Math.PI) * 2.2;
+        f.mesh.position.copy(p); f.mesh.rotation.y += dt * 3;
+      }
+    }
+    stallRing.material.opacity = stalling ? .55 + .35 * Math.sin(now / 90) : 0;
+    gpuDie.material.emissive.copy(stalling ? hotC : gpuC).multiplyScalar(stalling ? .5 : (u < 1.2 ? .35 : .1));
+    ctl.update(); R.render(scene, cam);
+    // labels
+    if (S.labels) {
+      const w = stage.clientWidth, h = stage.clientHeight;
+      for (const l of L) { const v = l[1].clone().project(cam); const el = l[3]; const vis = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05; el.style.display = vis ? "" : "none"; el.style.left = ((v.x + 1) / 2 * w) + "px"; el.style.top = ((1 - v.y) / 2 * h) + "px"; }
+    }
+    requestAnimationFrame(frame);
+  }
+  function resize() { const w = stage.clientWidth, h = stage.clientHeight; R.setSize(w, h, false); cam.aspect = w / h; cam.position.setLength(w < 560 ? 23 : 18.5); cam.updateProjectionMatrix(); }
+  new ResizeObserver(resize).observe(stage);
+  const sc = { apply, resize, start() { resize(); requestAnimationFrame(frame); } };
+  return sc;
+})();
+
+// ---------- side by side ----------
+const race = (() => {
+  const cvU = $("cvUp"), cvH = $("cvHyb"), cvC = $("cvChart");
+  let st;
+  function reset() {
+    const slots = solve({ ...S, design: "up" }).slots;
+    st = { slots, router: makeRouter(23), up: [], hyb: [], tok: 0, hist: { up: [], hyb: [] }, last: null, hits: { up: [0, 0], hyb: [0, 0] } };
+    for (let l = 0; l < LAYERS; l++) { st.up.push(makeCache(slots)); st.hyb.push(makeCache(slots)); }
+    // each layer gets its own stream; warm all caches with the same 30 tokens
+    st.routers = []; for (let l = 0; l < LAYERS; l++) st.routers.push(makeRouter(100 + l));
+    for (let t = 0; t < 30; t++) for (let l = 0; l < LAYERS; l++) { const ids = st.routers[l](); st.up[l].step(ids, false); st.hyb[l].step(ids, true); }
+    st.hyb.forEach(c => c.pending.clear());
+    draw(); $("caption").textContent = `Cache de ${S.mib} MiB: ${slots} slots por camada. Aperte “+1 token”.`;
+  }
+  function step() {
+    const m = MACH[S.machine], tc = tCpuExpert(m);
+    let mu = 0, mh = 0; const show = { };
+    for (let l = 0; l < LAYERS; l++) {
+      const ids = st.routers[l]();
+      const a = st.up[l].step(ids, false), b = st.hyb[l].step(ids, true);
+      mu += a.misses.length; mh += b.misses.length;
+      st.hits.up[0] += a.hits.length; st.hits.up[1] += 8; st.hits.hyb[0] += b.hits.length; st.hits.hyb[1] += 8;
+      if (l === 0) { show.ids = ids; show.a = a; show.b = b; }
+    }
+    const tUp = m.dense + mu * MIB_PER_EXPERT * m.msPerMiB;
+    const tHyb = m.dense + LAYERS * m.fixedHyb + mh * tc;
+    st.tok++; st.hist.up.push(1000 / tUp); st.hist.hyb.push(1000 / tHyb);
+    st.last = { ...show, mu, mh, tUp, tHyb };
+    const n = show.a.misses.length;
+    $("caption").textContent = `Token ${st.tok}, camada 0: ${8 - n} de 8 experts já estavam na VRAM. ` +
+      (n ? `Upstream: a GPU para ${fmt(n * MIB_PER_EXPERT * m.msPerMiB, 2)} ms copiando ${n}. Híbrido: ${show.b.misses.length} ${show.b.misses.length > 1 ? "rodam" : "roda"} na CPU em ${fmt(show.b.misses.length * tc, 2)} ms e ${show.b.misses.length > 1 ? "vão" : "vai"} para a VRAM em segundo plano.` : "Nenhum miss nesta camada.") +
+      ` No token inteiro (40 camadas): upstream ${fmt(tUp)} ms, híbrido ${fmt(tHyb)} ms.`;
+  }
+  const avg = a => { const s = a.slice(-10); return s.reduce((x, y) => x + y, 0) / Math.max(1, s.length); };
+  function fit(cv) { const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio, 2); if (cv.width !== Math.round(r.width * d)) { cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); } const g = cv.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0); return [g, r.width, r.height]; }
+  function drawPane(cv, which) {
+    const [g, w, h] = fit(cv); g.clearRect(0, 0, w, h);
+    const cache = st[which][0], last = st.last, res = last ? (which === "up" ? last.a : last.b) : { hits: [], misses: [] };
+    const cols = 12, n = st.slots, cell = Math.min(18, (w - 8) / cols), rows = Math.ceil(n / cols);
+    g.font = "500 10px " + css("--f-mono"); g.fillStyle = css("--mute"); g.fillText(`VRAM da camada 0 · ${n} slots`, 0, 10);
+    for (let i = 0; i < n; i++) {
+      const x = (i % cols) * cell, y = 18 + Math.floor(i / cols) * cell, e = cache.lru[i];
+      let c = css("--sunk"), continue_ = false;
+      if (e !== undefined) { g.globalAlpha = .35; g.fillStyle = css("--gpu"); g.fillRect(x + 1, y + 1, cell - 3, cell - 3); g.globalAlpha = 1; continue_ = true; }
+      if (e !== undefined && res.hits.includes(e)) c = css("--ok");
+      if (e !== undefined && res.misses.includes(e)) c = which === "up" ? css("--hot") : css("--gpu");
+      if (!(continue_ && c === css("--sunk"))) { g.fillStyle = c; g.fillRect(x + 1, y + 1, cell - 3, cell - 3); }
+      if (which === "hyb" && cache.pending.has(e)) { g.strokeStyle = css("--gpu"); g.setLineDash([3, 2]); g.strokeRect(x + 1.5, y + 1.5, cell - 4, cell - 4); g.setLineDash([]); g.fillStyle = css("--surface"); g.fillRect(x + 4, y + 4, cell - 9, cell - 9); }
+    }
+    // time bar for the whole token
+    const y0 = 18 + rows * cell + 16, m = MACH[S.machine];
+    g.fillStyle = css("--mute"); g.fillText("tempo do token (40 camadas)", 0, y0 - 4);
+    if (last) {
+      const scale = (w - 2) / 32, segs = which === "up" ? [[m.dense, "--mute"], [last.tUp - m.dense, "--hot"]] : [[m.dense, "--mute"], [LAYERS * m.fixedHyb, "--warn"], [last.tHyb - m.dense - LAYERS * m.fixedHyb, "--cpu"]];
+      let x = 0; for (const [v, c] of segs) { g.fillStyle = css(c); g.fillRect(x, y0, v * scale, 18); x += v * scale; }
+      g.fillStyle = css("--ink"); g.font = "600 11px " + css("--f-mono"); g.fillText(fmt(which === "up" ? last.tUp : last.tHyb) + " ms", Math.min(x + 6, w - 60), y0 + 13);
+      if (which === "up" && last.a.misses.length) { g.fillStyle = css("--hot"); g.font = "700 11px " + css("--f-mono"); g.fillText("ESPERA PCIe", m.dense * scale + 4, y0 + 34); }
+      if (which === "hyb" && last.b.misses.length) { g.fillStyle = css("--cpu"); g.font = "700 11px " + css("--f-mono"); g.fillText("CPU", (m.dense + LAYERS * m.fixedHyb) * scale + 4, y0 + 34); }
+    }
+  }
+  function drawChart() {
+    const [g, w, h] = fit(cvC); g.clearRect(0, 0, w, h);
+    const pad = { l: 34, r: 8, t: 10, b: 20 }, lo = 20, hi = 80, N = Math.max(60, st.tok);
+    const X = i => pad.l + (w - pad.l - pad.r) * i / (N - 1), Y = v => pad.t + (h - pad.t - pad.b) * (1 - (v - lo) / (hi - lo));
+    g.font = "500 10px " + css("--f-mono"); g.strokeStyle = css("--line"); g.fillStyle = css("--mute"); g.lineWidth = 1;
+    for (const v of [20, 40, 60, 80]) { g.beginPath(); g.moveTo(pad.l, Y(v)); g.lineTo(w - pad.r, Y(v)); g.stroke(); g.fillText(v, 4, Y(v) + 3); }
+    g.fillText("token", w - pad.r - 34, h - 4);
+    const base = MACH[S.machine].nocache; g.setLineDash([4, 3]); g.strokeStyle = css("--mute"); g.beginPath(); g.moveTo(pad.l, Y(base)); g.lineTo(w - pad.r, Y(base)); g.stroke(); g.setLineDash([]); g.fillText("sem cache " + fmt(base), pad.l + 4, Y(base) - 4);
+    for (const [k, c] of [["up", "--hot"], ["hyb", "--gpu"]]) {
+      const a = st.hist[k]; if (!a.length) continue; g.strokeStyle = css(c); g.lineWidth = 2; g.beginPath();
+      a.forEach((_, i) => { const v = avg(a.slice(0, i + 1)); i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); }); g.stroke();
+      const v = avg(a); g.fillStyle = css(c); g.beginPath(); g.arc(X(a.length - 1), Y(v), 3.5, 0, 7); g.fill();
+    }
+  }
+  function draw() {
+    drawPane(cvU, "up"); drawPane(cvH, "hyb"); drawChart();
+    $("rUp").innerHTML = (st.tok ? fmt(avg(st.hist.up)) : "–") + "<small>tok/s</small>";
+    $("rHyb").innerHTML = (st.tok ? fmt(avg(st.hist.hyb)) : "–") + "<small>tok/s</small>";
+    const hp = k => st.hits[k][1] ? fmt(100 * st.hits[k][0] / st.hits[k][1], 0) + "%" : "–";
+    $("rUpHit").textContent = `hit ${hp("up")} · token ${st.tok}`; $("rHybHit").textContent = `hit ${hp("hyb")} · token ${st.tok}`;
+  }
+  $("step1").onclick = () => { step(); draw(); };
+  let running = null;
+  $("step60").onclick = () => { if (running) return; let k = 0; const go = () => { step(); draw(); if (++k < 60) running = setTimeout(go, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 40); else running = null; }; go(); };
+  $("raceReset").onclick = () => { clearTimeout(running); running = null; reset(); };
+  let lastMib = null, lastMach = null;
+  return { reset, resize() { if (!st || lastMib !== S.mib || lastMach !== S.machine) { lastMib = S.mib; lastMach = S.machine; reset(); } else draw(); } };
+})();
+
+// ---------- keyboard ----------
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, select, textarea, button") || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  if (k === "1" || k === "2" || k === "3") { S.design = ["nocache", "up", "hyb"][+k - 1]; update(); }
+  else if (k === "ArrowLeft" || k === "ArrowRight") { S.mib = Math.max(2048, Math.min(6144, S.mib + (k === "ArrowRight" ? 512 : -512))); update(); e.preventDefault(); }
+  else if (k === " ") { S.paused = !S.paused; e.preventDefault(); }
+  else if (k === "r" || k === "R") { S.design = "hyb"; S.machine = "B"; S.mib = 5120; update(); race.reset(); }
+  else if (k === "n" || k === "N") { S.labels = !S.labels; update(); }
+  else if (k === "?") { $("help").hidden = !$("help").hidden; }
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => race.resize());
+scene3d.start(); update();
+</script>
