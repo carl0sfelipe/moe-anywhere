@@ -235,3 +235,16 @@ In decode each hybrid layer has three scheduler splits: CUDA (slot-map lookup, w
 A first one-off A/B showed +4%, which was noise. The GPU half of a layer runs at most 8 cached experts with MMVQ, which is too short to hide anything behind.
 
 The CPU half is not limited by threads either. At 5120 MiB, 2 interleaved repeats: `-t 4` 63.4, `-t 6` 64.1, `-t 8` 62.7, `--poll 0` / `--poll 100` / `--cpu-strict 1` all 59-63. So the remaining ~0.09 ms per layer is fixed latency: the full synchronization at the cache sync point plus two cross-backend hops. The next candidates are to remove splits rather than overlap them, for example by folding the slot-map read into the router split, or by skipping the CPU chain for layers with no misses (which needs a graph that does not depend on the plan). The scheduler change is not kept.
+
+### E4.2 — two cheap checks from the deep-research review (2026-10-21, 7800X3D)
+
+**Upstream cache and prefill length.** `tools/bench_decode.sh`, `NGEN=32`, 2 interleaved repeats:
+
+| prompt | no cache | upstream | hybrid |
+|---|---|---|---|
+| 14 tokens, prefill tok/s | 102 | 42 (5120 MiB) | 107 (5120 MiB) |
+| about 1,500 tokens, prefill tok/s | 337 | 349 (3072 MiB), 348 (4096 MiB) | 337 (3072 MiB) |
+
+So both reports are right in their own regime. Upstream only serves ubatches of 32 tokens or fewer through the cache, so a short prompt pays synchronous uploads (2.4x slower here). A long prompt takes the old offload path and only copies already-cached experts device-to-device (+3% here; sampop3 saw 150 to 382 tok/s on a 4-vCPU T4 with `--cpu-moe`, where the CPU is much weaker). A bypass for short prefill ubatches would remove the regression. Also, at 5120 MiB a 1,500-token prompt crashes both cache modes on this 8 GB card (`CUDA error: the resource allocation failed` in cuBLAS) because `-fit off` leaves no room for the large-batch compute buffers. The cache size must leave headroom for the prefill ubatch, which matters for any config recommender.
+
+**Layers with no misses.** Replaying `e3-bench.tsv` through the SLRU with instant fills (optimistic, since the simulated hit rate runs about 0.05 above measured), the share of decode layers whose experts are all resident is 5% at 2048 MiB, 12% at 3072, 30% at 5120 and 39% at 6144. Skipping the CPU chain on those layers would save at most 0.09 ms × 40 × 0.30 ≈ 1.1 ms per token at 5120 MiB, about +7%, and 1-2% at 2 GB. That is worth doing only together with other split removals.
