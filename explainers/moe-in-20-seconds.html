@@ -1,0 +1,310 @@
+<title>MoE in 20 Seconds</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500;700&family=Public+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: one recordable frame with two synced 3D benches (before | after), HTML overlays for titles, counters and story cards. Single dark look on purpose (screen recording). */
+:root {
+  --bg: #0b0e0f; --frame: #101416; --panel: rgba(16, 20, 22, .82); --ink: #e8ecea; --mute: #8d9a96; --line: #263033;
+  --before: #e48b4e; --after: #4cc0c3; --hot: #ff6b52; --ok: #5cc77d; --fix: #efb33c;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Public Sans", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); margin: 0; display: grid; grid-template-rows: auto 1fr; gap: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px; }
+.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font: 500 12px var(--f-mono); color: var(--mute); }
+.bar button { font: 600 12px var(--f-body); background: #161c1e; color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+.bar button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.bar button:focus-visible { outline: 2px solid var(--after); outline-offset: 2px; }
+.holder { display: grid; place-items: center; min-height: 0; container-type: size; }
+.frame { position: relative; background: var(--frame); border: 1px solid var(--line); overflow: hidden; aspect-ratio: 16 / 9; width: min(100cqw, 100cqh * 16 / 9); max-width: 100%; font-size: calc(min(100cqw, 100cqh * 16 / 9) / 64); }
+.frame.tall { aspect-ratio: 9 / 16; width: min(100cqw, 100cqh * 9 / 16); font-size: calc(min(100cqw, 100cqh * 9 / 16) / 36); }
+.frame canvas { position: absolute; inset: 0 0 2.6em 0; width: 100%; height: calc(100% - 2.6em); display: block; }
+.halves { position: absolute; inset: 0 0 2.6em 0; display: grid; grid-template-columns: 1fr 1fr; pointer-events: none; }
+.frame.tall .halves { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+.half { position: relative; display: grid; grid-template-rows: auto 1fr auto; padding: 1.3em 1.4em; gap: .6em; }
+.half + .half { border-left: 1px solid var(--line); }
+.frame.tall .half + .half { border-left: 0; border-top: 1px solid var(--line); }
+.top { display: flex; justify-content: space-between; align-items: start; gap: .8em; }
+.tag { font: 700 .8em var(--f-mono); letter-spacing: .12em; text-transform: uppercase; }
+.before .tag { color: var(--before); } .after .tag { color: var(--after); }
+.title { font: 750 1.9em/1 var(--f-display); font-stretch: 70%; margin-top: .25em; }
+.speed { font: 800 3.1em/0.9 var(--f-display); font-stretch: 70%; font-variant-numeric: tabular-nums; text-align: right; }
+.speed small { display: block; font: 500 .26em var(--f-mono); color: var(--mute); margin-top: .35em; }
+.before .speed { color: var(--before); } .after .speed { color: var(--after); }
+.bottom { display: grid; gap: .5em; }
+.cap { font: 500 .78em/1.4 var(--f-mono); background: var(--panel); border: 1px solid var(--line); padding: .55em .75em; border-radius: .3em; width: fit-content; max-width: 100%; min-height: 2.6em; }
+.count { display: grid; grid-template-columns: auto 1fr auto; gap: .7em; align-items: center; font: 500 .8em var(--f-mono); color: var(--mute); }
+.count b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.prog { height: .45em; background: var(--line); border-radius: 1em; overflow: hidden; }
+.prog div { height: 100%; width: 0; }
+.before .prog div { background: var(--before); } .after .prog div { background: var(--after); }
+.split { display: flex; height: .55em; border-radius: .2em; overflow: hidden; background: var(--line); }
+.split div { min-width: 0; }
+.win { font: 700 .8em var(--f-mono); color: var(--ok); }
+.legend { position: absolute; left: 0; right: 0; bottom: 0; height: 2.6em; display: flex; gap: 1.1em; align-items: center; justify-content: center; font: 500 .72em var(--f-mono); color: var(--mute); border-top: 1px solid var(--line); background: var(--frame); pointer-events: none; white-space: nowrap; overflow: hidden; }
+.frame.tall .legend { gap: .2em .8em; font-size: .6em; flex-wrap: wrap; white-space: normal; align-content: center; padding: 0 1em; }
+.legend i { display: inline-block; width: .7em; height: .7em; border-radius: .15em; margin-right: .35em; vertical-align: -.05em; }
+.card { position: absolute; inset: 0; display: grid; align-content: center; justify-items: start; gap: 1em; padding: 3em 3.4em; background: rgba(11, 14, 15, .9); opacity: 0; transition: opacity .6s; pointer-events: none; }
+.card.on { opacity: 1; }
+.card h1 { font: 800 4.4em/.95 var(--f-display); font-stretch: 70%; margin: 0; text-wrap: balance; }
+.card p { font-size: 1.35em; color: var(--mute); max-width: 34em; margin: 0; }
+.card p b { color: var(--ink); font-weight: 600; }
+.eyebrow { font: 500 .85em var(--f-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.nums { display: flex; align-items: baseline; gap: .5em; flex-wrap: wrap; font: 800 1em var(--f-display); font-stretch: 70%; font-variant-numeric: tabular-nums; }
+.nums .a { font-size: 4.4em; color: var(--before); } .nums .b { font-size: 6.4em; color: var(--after); } .nums .arr { font-size: 3em; color: var(--mute); }
+.gain { font: 800 2.2em var(--f-display); font-stretch: 70%; color: var(--ok); }
+.credits { font: 500 .8em var(--f-mono); color: var(--mute); }
+.slow { font-weight: 700; color: var(--fix); letter-spacing: .1em; }
+.whyrows { display: grid; gap: .8em; font: 600 1.05em var(--f-mono); }
+.wrow { display: flex; flex-wrap: wrap; align-items: center; gap: .6em; }
+.wrow b { font-size: 1.4em; color: var(--ink); margin-left: .4em; }
+.wtag { min-width: 11em; font-size: .8em; letter-spacing: .1em; text-transform: uppercase; }
+.pill { padding: .3em .6em; border-radius: .3em; border: 1px solid var(--line); }
+.pill.wait { border-color: var(--hot); color: var(--hot); background: rgba(255,107,82,.15); }
+.pill.cpu { border-color: var(--before); color: var(--before); background: rgba(228,139,78,.15); }
+.pill.bg { border-style: dashed; border-color: var(--after); color: var(--after); }
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+</style>
+
+<div class="bar">
+  <button id="play" aria-pressed="true">Pause</button>
+  <button id="restart">Restart</button>
+  <button id="wide" aria-pressed="true">16:9</button>
+  <button id="tall" aria-pressed="false">9:16</button>
+  <span>Record only the frame. Space pauses, R restarts. 20 s loop.</span>
+</div>
+<div class="holder">
+<div class="frame" id="frame">
+  <canvas id="c3d" aria-label="Two synced 3D benches: stock llama.cpp and the hybrid cache"></canvas>
+  <div class="halves">
+    <div class="half before">
+      <div class="top"><div><div class="tag">Before · stock llama.cpp</div><div class="title">Every expert runs on the CPU</div></div><div class="speed">48.4<small>tok/s measured</small></div></div>
+      <div></div>
+      <div class="bottom"><div class="cap" id="capA">…</div><div class="split" id="splitA"></div><div class="count"><span>tokens <b id="nA">0</b>/24</span><div class="prog"><div id="pA"></div></div><span id="wA"></span></div></div>
+    </div>
+    <div class="half after">
+      <div class="top"><div><div class="tag">After · moe-anywhere hybrid</div><div class="title">VRAM cache, CPU only on a miss</div></div><div class="speed">61.5<small>tok/s measured</small></div></div>
+      <div></div>
+      <div class="bottom"><div class="cap" id="capB">…</div><div class="split" id="splitB"></div><div class="count"><span>tokens <b id="nB">0</b>/24</span><div class="prog"><div id="pB"></div></div><span id="wB"></span></div></div>
+    </div>
+  </div>
+  <div class="legend"><span class="slow">SLOW MOTION 18×</span><span><i style="background:var(--ok)"></i>expert already in VRAM</span><span><i style="background:var(--before)"></i>computed on the CPU</span><span><i style="background:var(--after)"></i>copied in the background</span><span><i style="background:var(--fix)"></i>GPU↔CPU hop</span></div>
+  <div class="card" id="intro">
+    <div class="eyebrow">moe-anywhere · RTX 5050 8 GB · Qwen3.6-35B-A3B</div>
+    <h1>Same 8 GB GPU.<br>Same 35B model.</h1>
+    <p>For every token, each of the 40 layers picks <b>8 of 256 experts</b>. They don't fit in VRAM. Watch one layer, in slow motion, run both ways.</p>
+  </div>
+  <div class="card" id="why">
+    <div class="eyebrow">why it is faster</div>
+    <h1 style="font-size:3.4em">When an expert is missing from VRAM, the GPU no longer waits.</h1>
+    <div class="whyrows">
+      <div class="wrow"><span class="wtag" style="color:var(--hot)">llama.cpp cache</span><span class="pill wait">GPU stops, copies 1.9 MiB over PCIe</span><b>0.15 ms</b></div>
+      <div class="wrow"><span class="wtag" style="color:var(--after)">moe-anywhere hybrid</span><span class="pill cpu">CPU computes it now</span><span class="pill bg">copy to VRAM in background</span><b>0.03 ms</b></div>
+    </div>
+  </div>
+  <div class="card" id="outro">
+    <div class="eyebrow">measured result, same card</div>
+    <div class="nums"><span class="a">48.4</span><span class="arr">→</span><span class="b">61.5</span><span style="font:500 .9em var(--f-mono);color:var(--mute)">tok/s</span></div>
+    <div class="gain">+27% with no new hardware</div>
+    <p>The hottest experts stay in VRAM. A missing one runs on the CPU right away, so the GPU never waits on PCIe, and it is copied to VRAM in the background. Same output (KL 0.006).</p>
+    <div class="credits">github.com/carl0sfelipe/moe-anywhere · same idea in llama.cpp PR #27861 and Fiddler</div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+// ---------- measured model (experiments.md E3e, Ryzen 7 7800X3D + RTX 5050) ----------
+const RATE = { A: 48.4, B: 61.5 };            // decode tok/s, measured
+const DENSE = 10.25, T_CPU = 0.029, HOP = 0.029, FIX_HYB = 0.09, LAYERS = 40, TOPK = 8; // ms
+const SLOW = 18, GOAL = 24;                   // slow motion factor, tokens in the race
+const T_INTRO = 3, T_WHY = 4, T_OUTRO = 3;
+const $ = id => document.getElementById(id);
+const fmt = (x, d = 2) => x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---------- routing: Zipf(1.2) popularity + 20% carry-over, ~78% LRU hits at 64 slots ----------
+function rng(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function makeRouter(seed) {
+  const r = rng(seed), w = [], perm = [...Array(256).keys()];
+  for (let i = 255; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
+  let tot = 0; for (let i = 0; i < 256; i++) { w.push(1 / Math.pow(i + 1, 1.2)); tot += w[i]; }
+  let prev = [];
+  return () => { const s = new Set(); for (const e of prev) if (s.size < TOPK && r() < .2) s.add(e);
+    while (s.size < TOPK) { let u = r() * tot, i = 0; while (u > w[i]) { u -= w[i]; i++; } s.add(perm[i]); } prev = [...s]; return prev; };
+}
+const SLOTS = 67; // 5120 MiB / (40 layers x 1.9 MiB)
+function makeCache() {
+  const lru = [], pending = new Map(); // expert -> time its background copy lands
+  return { lru, pending,
+    step(ids, now) {
+      const hits = [], misses = [];
+      for (const e of ids) {
+        const ready = lru.includes(e) && !(pending.has(e) && pending.get(e) > now);
+        if (ready) { hits.push(e); lru.splice(lru.indexOf(e), 1); lru.push(e); } else misses.push(e);
+      }
+      for (const e of misses) if (!lru.includes(e)) { lru.push(e); while (lru.length > SLOTS) { const k = lru.findIndex(x => !ids.includes(x)); lru.splice(k < 0 ? 0 : k, 1); } }
+      return { hits, misses };
+    } };
+}
+
+// ---------- three.js: one renderer, two scenes drawn with scissor ----------
+const canvas = $("c3d"), frame = $("frame");
+const R = new THREE.WebGLRenderer({ canvas, antialias: true });
+R.setPixelRatio(Math.min(devicePixelRatio, 2)); R.outputEncoding = THREE.sRGBEncoding; R.setScissorTest(true);
+const COL = { ok: new THREE.Color("#5cc77d"), cpu: new THREE.Color("#e48b4e"), bg: new THREE.Color("#4cc0c3"), fix: new THREE.Color("#efb33c"),
+  slot: new THREE.Color("#2b3437"), res: new THREE.Color("#245e62"), ram: new THREE.Color("#59625f"), sel: new THREE.Color("#c9d2cf"), black: new THREE.Color(0) };
+const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .55, metalness: .1 }, o));
+
+function makeRig(hybrid, seed) {
+  const scene = new THREE.Scene(); scene.background = new THREE.Color("#101416");
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334044, .95));
+  const sun = new THREE.DirectionalLight(0xffffff, .75); sun.position.set(4, 12, 7); scene.add(sun);
+  const cam = new THREE.PerspectiveCamera(36, 1, .1, 200);
+  const box = (w, h, d, m) => { const x = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); scene.add(x); return x; };
+  box(5.2, .22, 5.2, mat(0x252c2e, { roughness: .7 })).position.set(-4.6, 0, 0);
+  const gpuDie = box(1.4, .26, .9, mat(0x1c2224, { metalness: .5, roughness: .3 })); gpuDie.position.set(-4.6, .24, -2.0);
+  box(5.6, .18, 5.6, mat(0x2b3133, { roughness: .8 })).position.set(4.6, 0, 0);
+  const cpuDie = box(1.5, .32, 1.0, mat(0x3a4245, { metalness: .4, roughness: .35 })); cpuDie.position.set(4.6, .25, -2.1);
+  box(4.0, .08, .7, mat(0x4b5552)).position.set(0, .05, 1.6);
+  for (let i = 0; i < 8; i++) box(4.0, .02, .03, mat(0xb08a3a, { metalness: .8, roughness: .3 })).position.set(0, .1, 1.35 + i * .07);
+  const slots = [], ram = [];
+  const sg = new THREE.BoxGeometry(.4, .16, .4), eg = new THREE.BoxGeometry(.22, .1, .22);
+  for (let i = 0; i < 72; i++) { const m = new THREE.Mesh(sg, mat(COL.slot.clone())); m.position.set(-6.5 + (i % 9) * .48, .2, -1.0 + Math.floor(i / 9) * .48); scene.add(m); slots.push(m); }
+  for (let i = 0; i < 256; i++) { const m = new THREE.Mesh(eg, mat(COL.ram.clone())); m.position.set(2.7 + (i % 16) * .255, .16, -1.25 + Math.floor(i / 16) * .255); scene.add(m); ram.push(m); }
+  const pulse = new THREE.Mesh(new THREE.SphereGeometry(.13, 12, 12), new THREE.MeshBasicMaterial({ color: COL.fix })); scene.add(pulse);
+  const fg = new THREE.BoxGeometry(.3, .14, .3), fliers = [];
+  const router = makeRouter(seed), cache = hybrid ? makeCache() : null;
+  if (cache) for (let i = 0; i < 40; i++) cache.step(router(), -1);
+  return { scene, cam, gpuDie, cpuDie, slots, ram, pulse, fliers, fg, router, cache, hybrid, cur: null, tokStart: 0, tokens: 0 };
+}
+const rigA = makeRig(false, 11), rigB = makeRig(true, 11);
+
+// one token at the shown layer, in slow-motion seconds
+function tokenDur(rig) { return SLOW / RATE[rig.hybrid ? "B" : "A"]; }
+function newToken(rig, now) {
+  const ids = rig.router();
+  const res = rig.cache ? rig.cache.step(ids, now) : { hits: [], misses: ids };
+  rig.cur = { ids, ...res }; rig.tokStart = now;
+  if (rig.hybrid) for (const e of res.misses) {
+    if (rig.fliers.some(f => f.e === e)) continue;
+    const m = new THREE.Mesh(rig.fg, new THREE.MeshStandardMaterial({ color: COL.bg, emissive: COL.bg, emissiveIntensity: .45, transparent: true, opacity: .7 }));
+    rig.scene.add(m);
+    const land = now + tokenDur(rig) * 0.95; rig.cache.pending.set(e, land);
+    rig.fliers.push({ e, m, t0: now + tokenDur(rig) * .35, t1: land });
+  }
+  const n = res.misses.length;
+  // ms per layer for this token at this layer: CPU experts + hop
+  const cpuMs = (rig.hybrid ? n : TOPK) * T_CPU, fixMs = rig.hybrid ? FIX_HYB : HOP;
+  rig.split = [[DENSE / LAYERS, "#59625f"], [fixMs, "#efb33c"], [cpuMs, "#e48b4e"]];
+  rig.capText = rig.hybrid
+    ? (n ? `${TOPK - n} of 8 already in VRAM. ${n} ${n > 1 ? "run" : "runs"} on the CPU (${fmt(cpuMs)} ms) and ${n > 1 ? "move" : "moves"} to VRAM in the background.` : "8 of 8 already in VRAM. The CPU only pays the fixed hop.")
+    : `8 of 8 on the CPU: ${fmt(cpuMs)} ms in this layer, every token. VRAM holds no experts.`;
+}
+function slotIndex(rig, e) { return rig.cache ? rig.cache.lru.indexOf(e) : -1; }
+function drawRig(rig, now) {
+  const u = Math.min(1, (now - rig.tokStart) / tokenDur(rig)), cur = rig.cur;
+  rig.slots.forEach((m, i) => {
+    if (!rig.cache) { m.material.color.copy(COL.slot); m.material.emissive.copy(COL.black); m.position.y = .2; m.visible = i < SLOTS; return; }
+    m.visible = i < SLOTS;
+    const e = rig.cache.lru[i]; let c = e === undefined ? COL.slot : COL.res, em = 0, lift = 0;
+    const inFlight = e !== undefined && rig.cache.pending.has(e) && rig.cache.pending.get(e) > now;
+    if (inFlight) c = COL.slot;
+    if (e !== undefined && cur.hits.includes(e)) { c = COL.ok; em = .7 * (1 - u); lift = .1 * (1 - u); }
+    m.material.color.copy(c); m.material.emissive.copy(c).multiplyScalar(em); m.position.y = .2 + lift;
+  });
+  const onCpu = rig.hybrid ? cur.misses : cur.ids;
+  rig.ram.forEach((m, i) => {
+    const on = onCpu.includes(i), sel = cur.ids.includes(i);
+    m.material.color.copy(on ? COL.cpu : sel ? COL.sel : COL.ram);
+    m.material.emissive.copy(on ? COL.cpu : COL.black).multiplyScalar(on ? .6 * (1 - u * .7) : 0);
+    m.position.y = .16 + (on ? .1 * (1 - u) : 0);
+  });
+  const busy = onCpu.length / TOPK;
+  rig.cpuDie.material.emissive.copy(COL.cpu).multiplyScalar(busy * (.25 + .5 * (1 - u)));
+  rig.gpuDie.material.emissive.copy(COL.bg).multiplyScalar(.15 + .3 * (1 - u));
+  // activation hop GPU -> CPU -> GPU (only when something runs on the CPU)
+  rig.pulse.visible = onCpu.length > 0 && u < .9;
+  if (rig.pulse.visible) { const k = u / .9, a = k < .5 ? k * 2 : 2 - k * 2; rig.pulse.position.set(-3.2 + a * 6.4, .5 + Math.sin(a * Math.PI) * .6, 1.6); }
+  for (let i = rig.fliers.length - 1; i >= 0; i--) {
+    const f = rig.fliers[i], k = (now - f.t0) / (f.t1 - f.t0);
+    if (k >= 1) { rig.scene.remove(f.m); rig.fliers.splice(i, 1); continue; }
+    f.m.visible = k > 0;
+    if (k > 0) {
+      const si = slotIndex(rig, f.e), to = si >= 0 ? rig.slots[si].position : rig.gpuDie.position, from = rig.ram[f.e].position;
+      const s = k * k * (3 - 2 * k), p = from.clone().lerp(to, s); p.y += Math.sin(s * Math.PI) * 1.4; p.z += Math.sin(s * Math.PI) * 2.3;
+      f.m.position.copy(p); f.m.rotation.y = k * 6;
+    }
+  }
+}
+
+// ---------- story clock ----------
+const RACE = 10; // the slower one finishes at ~8.9 s
+const TOTAL = T_INTRO + RACE + T_WHY + T_OUTRO;
+let t = 0, playing = true, prev = performance.now(), lastT = -1;
+function resetRace() {
+  for (const rig of [rigA, rigB]) { rig.tokens = 0; rig.fliers.forEach(f => rig.scene.remove(f.m)); rig.fliers.length = 0; if (rig.cache) rig.cache.pending.clear(); newToken(rig, 0); }
+}
+resetRace();
+function layout() {
+  const w = canvas.clientWidth, h = canvas.clientHeight, tall = frame.classList.contains("tall");
+  R.setSize(w, h, false);
+  const halves = tall ? [[0, h / 2, w, h / 2], [0, 0, w, h / 2]] : [[0, 0, w / 2, h], [w / 2, 0, w / 2, h]];
+  [rigA, rigB].forEach((rig, i) => {
+    rig.view = halves[i];
+    const [, , vw, vh] = halves[i];
+    rig.cam.aspect = vw / vh;
+    const d = tall ? 21 : 30; rig.cam.position.set(0, d * .62, d * .78); rig.cam.lookAt(0, tall ? -.6 : -1.2, .6);
+    rig.cam.updateProjectionMatrix();
+  });
+}
+new ResizeObserver(layout).observe(frame);
+function setText(rig, side, raceT) {
+  $("cap" + side).textContent = rig.capText;
+  $("split" + side).innerHTML = rig.split.map(([v, c]) => `<div style="flex-grow:${v};background:${c}"></div>`).join("");
+  $("n" + side).textContent = rig.tokens;
+  $("p" + side).style.width = (rig.tokens / GOAL * 100) + "%";
+  const done = rig.tokens >= GOAL;
+  $("w" + side).textContent = done ? "✓ " + fmt(GOAL / RATE[side] * 1000 / 1000, 2) + " s real time" : "";
+  $("w" + side).className = done ? "win" : "";
+}
+function loop(now, manualDt) {
+  const dt = manualDt !== undefined ? manualDt : Math.min(.1, (now - prev) / 1000); prev = now;
+  if (playing) t += dt;
+  if (t >= TOTAL) { t = 0; resetRace(); }
+  $("intro").classList.toggle("on", t < T_INTRO);
+  $("why").classList.toggle("on", t >= T_INTRO + RACE && t < T_INTRO + RACE + T_WHY);
+  $("outro").classList.toggle("on", t >= T_INTRO + RACE + T_WHY);
+  const rt = Math.max(0, t - T_INTRO); // race time (slow-motion seconds)
+  if (t < lastT) resetRace();
+  lastT = t;
+  for (const [rig, side] of [[rigA, "A"], [rigB, "B"]]) {
+    const n = Math.min(GOAL, Math.floor(rt / tokenDur(rig)));
+    while (rig.tokens < n) { rig.tokens++; if (rig.tokens < GOAL) newToken(rig, rig.tokens * tokenDur(rig)); }
+    drawRig(rig, rig.tokens >= GOAL ? rig.tokStart + tokenDur(rig) : rt);
+    setText(rig, side, rt);
+    const [x, y, w, h] = rig.view; R.setViewport(x, y, w, h); R.setScissor(x, y, w, h); R.render(rig.scene, rig.cam);
+  }
+  if (manualDt === undefined && !window.__manual) requestAnimationFrame(loop);
+}
+window.__step = dt => loop(0, dt);
+function setPlaying(p) { playing = p; $("play").textContent = p ? "Pause" : "Play"; $("play").setAttribute("aria-pressed", p); }
+$("play").onclick = () => setPlaying(!playing);
+$("restart").onclick = () => { t = 0; lastT = -1; resetRace(); setPlaying(true); };
+function setShape(tall) { frame.classList.toggle("tall", tall); $("tall").setAttribute("aria-pressed", tall); $("wide").setAttribute("aria-pressed", !tall); layout(); try { localStorage.setItem("bd-shape", tall ? "tall" : "wide"); } catch (e) {} }
+$("wide").onclick = () => setShape(false); $("tall").onclick = () => setShape(true);
+try { if (localStorage.getItem("bd-shape") === "tall") setShape(true); } catch (e) {}
+document.addEventListener("keydown", e => {
+  if (e.target.closest("button, input")) return;
+  if (e.key === " ") { setPlaying(!playing); e.preventDefault(); }
+  else if (e.key === "r" || e.key === "R") { $("restart").click(); }
+});
+if (reduce) { t = T_INTRO + 6; setPlaying(false); }
+layout(); if (!window.__manual) requestAnimationFrame(loop);
+</script>
