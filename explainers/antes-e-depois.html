@@ -1,0 +1,211 @@
+<title>Antes e Depois MoE</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500;700&family=Public+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: one recordable frame (16:9 or 9:16) that plays a looping story; controls sit outside the frame. Single dark look on purpose (screen recording). */
+:root {
+  --bg: #0b0e0f; --frame: #111618; --panel: #161c1e; --ink: #e8ecea; --mute: #8d9a96; --line: #263033;
+  --before: #e48b4e; --after: #4cc0c3; --hot: #ff6b52; --ok: #5cc77d;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Public Sans", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); margin: 0; display: grid; grid-template-rows: auto 1fr; gap: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px; }
+.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font: 500 12px var(--f-mono); color: var(--mute); }
+.bar button { font: 600 12px var(--f-body); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+.bar button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.bar button:focus-visible { outline: 2px solid var(--after); outline-offset: 2px; }
+.holder { display: grid; place-items: center; min-height: 0; container-type: size; }
+.frame { position: relative; background: var(--frame); border: 1px solid var(--line); overflow: hidden; aspect-ratio: 16 / 9; width: min(100cqw, 100cqh * 16 / 9); max-width: 100%; }
+.frame.tall { aspect-ratio: 9 / 16; width: min(100cqw, 100cqh * 9 / 16); }
+/* everything inside scales with the frame width */
+.frame { font-size: calc(min(100cqw, 100cqh * 16 / 9) / 64); }
+.frame.tall { font-size: calc(min(100cqw, 100cqh * 9 / 16) / 36); }
+.scene { position: absolute; inset: 0; padding: 3.2em 3.4em; display: grid; align-content: center; gap: 1.2em; opacity: 0; transition: opacity .5s; }
+.scene.on { opacity: 1; }
+h1, h2 { font-family: var(--f-display); font-stretch: 70%; margin: 0; line-height: .95; text-wrap: balance; }
+h1 { font-size: 4.6em; font-weight: 800; }
+h2 { font-size: 2.5em; font-weight: 750; }
+.eyebrow { font: 500 .8em var(--f-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.sub { font-size: 1.35em; color: var(--mute); max-width: 36em; margin: 0; }
+.sub b { color: var(--ink); font-weight: 600; }
+/* race */
+.race { padding: 2.2em 2.4em; align-content: stretch; grid-template-rows: auto 1fr auto; }
+.lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; min-height: 0; }
+.frame.tall .lanes { grid-template-columns: 1fr; }
+.lane { background: var(--panel); border: 1px solid var(--line); border-radius: .4em; display: grid; grid-template-rows: auto 1fr auto; min-height: 0; overflow: hidden; }
+.lane header { padding: .8em 1em; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; gap: .6em; }
+.tag { font: 700 .75em var(--f-mono); letter-spacing: .1em; text-transform: uppercase; }
+.lane.before .tag { color: var(--before); } .lane.after .tag { color: var(--after); }
+.how { font: 500 .72em var(--f-mono); color: var(--mute); }
+.term { font: 400 .78em/1.45 var(--f-mono); color: var(--ink); padding: .8em 1em; white-space: pre-wrap; overflow: hidden; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; -webkit-mask-image: linear-gradient(transparent 0, #000 3.2em); mask-image: linear-gradient(transparent 0, #000 3.2em); }
+.term .cursor { display: inline-block; width: .55em; height: 1.1em; vertical-align: -.2em; background: currentColor; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.lane footer { padding: .7em 1em; border-top: 1px solid var(--line); display: grid; grid-template-columns: auto 1fr auto; gap: .9em; align-items: center; }
+.speed { font: 800 2.6em/1 var(--f-display); font-stretch: 70%; font-variant-numeric: tabular-nums; }
+.speed small { font: 500 .32em var(--f-mono); color: var(--mute); margin-left: .3em; }
+.lane.before .speed { color: var(--before); } .lane.after .speed { color: var(--after); }
+.prog { height: .45em; background: var(--line); border-radius: 1em; overflow: hidden; }
+.prog div { height: 100%; width: 0; }
+.lane.before .prog div { background: var(--before); } .lane.after .prog div { background: var(--after); }
+.clock { font: 500 .85em var(--f-mono); font-variant-numeric: tabular-nums; color: var(--mute); text-align: right; min-width: 6.5em; }
+.done { color: var(--ok) !important; font-weight: 700; }
+.racehead { display: flex; justify-content: space-between; align-items: end; gap: 1em; margin-bottom: .9em; }
+.racehead h2 { font-size: 1.9em; }
+.live { font: 700 .75em var(--f-mono); color: var(--hot); letter-spacing: .12em; }
+.live::before { content: "● "; }
+.note { font: 500 .7em var(--f-mono); color: var(--mute); margin-top: .8em; }
+/* why */
+.why { grid-template-columns: 1fr 1fr; align-items: center; gap: 2em; }
+.frame.tall .why { grid-template-columns: 1fr; align-content: center; }
+.flow { display: grid; gap: .8em; }
+.row { background: var(--panel); border: 1px solid var(--line); border-radius: .4em; padding: .9em 1em; display: grid; gap: .5em; }
+.row .tag { font-size: .72em; }
+.steps { display: flex; align-items: center; gap: .5em; flex-wrap: wrap; font: 600 .85em var(--f-mono); }
+.pill { padding: .3em .6em; border-radius: .3em; border: 1px solid var(--line); }
+.pill.wait { background: color-mix(in srgb, var(--hot) 22%, transparent); border-color: var(--hot); color: var(--hot); }
+.pill.cpu { background: color-mix(in srgb, var(--before) 20%, transparent); border-color: var(--before); color: var(--before); }
+.pill.bg { border-style: dashed; border-color: var(--after); color: var(--after); }
+.pill.gpu { background: color-mix(in srgb, var(--ok) 18%, transparent); border-color: var(--ok); color: var(--ok); }
+.arrow { color: var(--mute); }
+.cost { font: 500 .8em var(--f-mono); color: var(--mute); }
+.cost b { color: var(--ink); }
+/* end */
+.end { justify-items: start; }
+.nums { display: flex; align-items: baseline; gap: .5em; font-family: var(--f-display); font-stretch: 70%; font-weight: 800; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.nums .a { font-size: 4.4em; color: var(--before); } .nums .b { font-size: 6.4em; color: var(--after); } .nums .arrow { font-size: 3em; }
+.gain { font: 800 2.2em var(--f-display); font-stretch: 70%; color: var(--ok); }
+.credits { font: 500 .78em var(--f-mono); color: var(--mute); }
+.dots { position: absolute; bottom: 1.1em; left: 50%; transform: translateX(-50%); display: flex; gap: .45em; }
+.dots i { width: .5em; height: .5em; border-radius: 50%; background: var(--line); }
+.dots i.on { background: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .scene { transition: none; } .term .cursor { animation: none; } }
+</style>
+
+<div class="bar">
+  <button id="play" aria-pressed="true">Pausar</button>
+  <button id="restart">Recomeçar</button>
+  <button id="wide" aria-pressed="true">16:9</button>
+  <button id="tall" aria-pressed="false">9:16</button>
+  <span>Grave só o quadro. Espaço pausa, R recomeça. Loop de ~22 s.</span>
+</div>
+<div class="holder">
+<div class="frame" id="frame">
+
+  <section class="scene" id="s0">
+    <div class="eyebrow">moe-anywhere · RTX 5050 8 GB</div>
+    <h1>Mesma GPU.<br>Mesmo modelo de 35B.</h1>
+    <p class="sub">Qwen3.6-35B-A3B (Sage-A1.5, Q4_K_M) não cabe em 8 GB de VRAM. Os experts ficam na RAM. <b>Muda só o jeito de lidar com eles.</b></p>
+  </section>
+
+  <section class="scene race" id="s1">
+    <div class="racehead"><h2>Mesma pergunta, velocidade medida</h2><span class="live">ritmo real</span></div>
+    <div class="lanes">
+      <div class="lane before">
+        <header><span class="tag">Antes · llama.cpp</span><span class="how">experts na CPU</span></header>
+        <div class="term" id="tA"></div>
+        <footer><div class="speed">48,4<small>tok/s</small></div><div class="prog"><div id="pA"></div></div><div class="clock" id="cA">0,00 s</div></footer>
+      </div>
+      <div class="lane after">
+        <header><span class="tag">Depois · híbrido</span><span class="how">cache de 5 GB na VRAM</span></header>
+        <div class="term" id="tB"></div>
+        <footer><div class="speed">61,5<small>tok/s</small></div><div class="prog"><div id="pB"></div></div><div class="clock" id="cB">0,00 s</div></footer>
+      </div>
+    </div>
+    <div class="note">Texto real do modelo, 180 tokens. Ritmo reproduzido a partir das médias medidas (Ryzen 7 7800X3D, 3 repetições).</div>
+  </section>
+
+  <section class="scene why" id="s2">
+    <div>
+      <div class="eyebrow">o truque</div>
+      <h2>Quando o expert não está na VRAM, a GPU não espera mais.</h2>
+      <p class="sub" style="margin-top:.8em">A cada token, o modelo escolhe 8 de 256 experts por camada. Os mais usados ficam num cache na VRAM.</p>
+    </div>
+    <div class="flow">
+      <div class="row"><span class="tag" style="color:var(--hot)">cache comum do llama.cpp</span>
+        <div class="steps"><span class="pill">expert faltando</span><span class="arrow">→</span><span class="pill wait">GPU para e copia 1,9 MiB</span><span class="arrow">→</span><span class="pill gpu">roda</span></div>
+        <div class="cost">custo por miss: <b>0,15 ms</b> de GPU parada</div></div>
+      <div class="row"><span class="tag" style="color:var(--after)">híbrido moe-anywhere</span>
+        <div class="steps"><span class="pill">expert faltando</span><span class="arrow">→</span><span class="pill cpu">CPU calcula na hora</span><span class="arrow">+</span><span class="pill bg">cópia em segundo plano</span></div>
+        <div class="cost">custo por miss: <b>0,03 ms</b>, e no próximo token ele já está na VRAM</div></div>
+    </div>
+  </section>
+
+  <section class="scene end" id="s3">
+    <div class="eyebrow">resultado medido</div>
+    <div class="nums"><span class="a">48,4</span><span class="arrow">→</span><span class="b">61,5</span><span style="font:500 .9em var(--f-mono);color:var(--mute)">tok/s</span></div>
+    <div class="gain">+27% na mesma placa de 8 GB</div>
+    <p class="sub">Saída igual à do caminho sem cache (divergência KL 0,006, a mesma do cache oficial).</p>
+    <div class="credits">github.com/carl0sfelipe/moe-anywhere · ideia também no llama.cpp PR #27861 e no Fiddler</div>
+  </section>
+
+  <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
+</div>
+</div>
+
+<script>
+"use strict";
+const TEXT = `Here's a thinking process:
+
+1.  **Understand User Request:**
+   - **Topic:** Hash map (also known as hash table, dictionary in Python).
+   - **Requirements:** Explain how it works, and provide an example in Python.
+   - **Goal:** Clear, accurate, and educational explanation.
+
+2.  **Core Concepts of a Hash Map:**
+   - What is it? A data structure that stores key-value pairs.
+   - How does it work? Uses a hash function to compute an index (bucket) for each key.
+   - Key steps:
+     1. Take a key.
+     2. Apply a hash function to get a hash code.
+     3. Map hash code to an index in an array (using modulo, usually).
+     4. Store the value at`;
+const N_TOKENS = 180, RATE_A = 48.4, RATE_B = 61.5; // measured decode tok/s (E3e)
+// split into N_TOKENS pieces of similar size so the counter matches the real token count
+const pieces = (() => { const parts = TEXT.match(/\s*[A-Za-z]{1,4}|\s*[^A-Za-z\s]|\s+/g); const out = []; for (let i = 0; i < N_TOKENS; i++) out.push(parts.slice(Math.floor(i * parts.length / N_TOKENS), Math.floor((i + 1) * parts.length / N_TOKENS)).join("")); return out; })();
+// timeline (seconds)
+const T_INTRO = 3.2, T_RACE = 4.0 + 2.2, T_WHY = 6.5, T_END = 5.5, TOTAL = T_INTRO + T_RACE + T_WHY + T_END;
+const $ = id => document.getElementById(id);
+const fmt = (x, d = 2) => x.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+let t = 0, playing = true, prev = performance.now();
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function lane(term, prog, clock, rate, tr) {
+  const n = Math.min(N_TOKENS, Math.floor(tr * rate));
+  const done = n >= N_TOKENS;
+  term.innerHTML = esc(pieces.slice(0, n).join("")) + (done ? "" : '<span class="cursor"></span>');
+  prog.style.width = (n / N_TOKENS * 100) + "%";
+  const el = done ? N_TOKENS / rate : tr;
+  clock.textContent = done ? "✓ " + fmt(el) + " s" : fmt(el) + " s";
+  clock.classList.toggle("done", done);
+}
+function render() {
+  const scenes = [T_INTRO, T_RACE, T_WHY, T_END];
+  let acc = 0, k = 0; while (k < 3 && t >= acc + scenes[k]) { acc += scenes[k]; k++; }
+  for (let i = 0; i < 4; i++) { $("s" + i).classList.toggle("on", i === k); $("dots").children[i].classList.toggle("on", i === k); }
+  if (k === 1) { const tr = Math.max(0, t - acc - 0.5); lane($("tA"), $("pA"), $("cA"), RATE_A, tr); lane($("tB"), $("pB"), $("cB"), RATE_B, tr); }
+}
+function loop(now) {
+  const dt = Math.min(.1, (now - prev) / 1000); prev = now;
+  if (playing) { t += dt; if (t >= TOTAL) t = 0; }
+  render(); requestAnimationFrame(loop);
+}
+function setPlaying(p) { playing = p; $("play").textContent = p ? "Pausar" : "Tocar"; $("play").setAttribute("aria-pressed", p); }
+$("play").onclick = () => setPlaying(!playing);
+$("restart").onclick = () => { t = 0; setPlaying(true); };
+function setShape(tall) { $("frame").classList.toggle("tall", tall); $("tall").setAttribute("aria-pressed", tall); $("wide").setAttribute("aria-pressed", !tall); try { localStorage.setItem("ad-shape", tall ? "tall" : "wide"); } catch (e) {} }
+$("wide").onclick = () => setShape(false); $("tall").onclick = () => setShape(true);
+try { if (localStorage.getItem("ad-shape") === "tall") setShape(true); } catch (e) {}
+document.addEventListener("keydown", e => {
+  if (e.target.closest("button, input")) return;
+  if (e.key === " ") { setPlaying(!playing); e.preventDefault(); }
+  else if (e.key === "r" || e.key === "R") { t = 0; setPlaying(true); }
+});
+if (reduce) { t = T_INTRO + 4.5; setPlaying(false); }
+requestAnimationFrame(loop);
+</script>
