@@ -262,6 +262,54 @@ Leads, not tested:
 - Even with those costs the timeline predicts about 36 tok/s for hybrid 5120 on Bolt, against 21 measured. Suspects: background uploads stealing DDR4 bandwidth from the CPU experts (open question), and CPU contention from the production containers. `llama-bench` shows 4 threads at 39.4 tok/s against 6 threads at 26.7 for Sage no-cache, so the default `-t 6` is hit by the other load, and the hybrid's CPU half sits on the critical path.
 - One failed run each for upstream 2048 (Sage) and hybrid 2048 (Bolt); not reproduced in 4 retries, logs not kept (`tools/bench_decode.sh` now keeps them).
 
+### E3g — machine or rebase? Same-day A/B on the 7800X3D, Nemotron Bolt on 8 GB, contention checks (2026-10-22)
+
+Machine `omarchy-white` (same as E3e): Ryzen 7 7800X3D, 30 GB DDR5, RTX 5050 8 GB at PCIe 4.0 x8 (confirmed under load), driver 615.78. Two builds on the same day, sm_120, `-j 4`: llama.cpp `36cbf415f` + `patches/llama.cpp-36cbf415f-moe-cache-hybrid.patch` and `0a1ef30` + `patches/llama.cpp-0a1ef30-moe-cache-hybrid.patch` (worktree `~/src/llama.cpp-moe-old`). Both patches built with no change. Raw output: `results/omarchy-white-20261022-1538/` (new base, Sage), `-1553/` (old base, Sage), `-1607/` (new base, Bolt) and `-step3/` (contention checks).
+
+**Step 1: machine or rebase.** Sage-A1.5 Q4_K_M, `tools/bench_decode.sh`, `--load-mode none`, 3 interleaved repeats, mean. The two runs were back to back, not interleaved with each other.
+
+| config | 36cbf415f | 0a1ef30 | E3e (0a1ef30, yesterday) |
+|---|---|---|---|
+| no cache | 49.0 | 49.1 | 48.4 |
+| upstream 2048 MiB | 35.6 | 35.6 | 35.6 |
+| upstream 5120 MiB | 56.9 | 57.0 | 56.7 |
+| hybrid 2048 MiB | 51.8 (48.4-53.7) | 53.0 | 53.3 |
+| hybrid 3072 MiB | 57.2 (54.7-58.5) | 57.6 | 57.7 |
+| **hybrid 5120 MiB** | **62.8** | **63.0** | 61.5 |
+
+KLD against experts-on-CPU, 36cbf415f: upstream 5120 0.0053, hybrid 5120 0.0049.
+
+Verdict: **the rebase did not regress.** hyb5120 is within 0.3% across bases, and upstream and no cache are identical. The only gap is one slow third repeat at 2048/3072 on the new base (spread inside the 5-10% noise of this box). So the 2x loss in E3f is the machine (`omarchy`), not the rebase. No bisect was needed.
+
+**Step 2: Nemotron 3.5 Bolt 24GB (IQ2_XXS) on 8 GB.** 4.2 GB of non-expert weights on the GPU, 16.3 GB of experts in pinned RAM. Every 3072 and 5120 MiB config fails at context creation (`failed to allocate the MoE cache buffers`, logs kept), as expected. By hand with smaller caches, 3 interleaved repeats, default `-t 8`:
+
+| config | decode tok/s | hit rate |
+|---|---|---|
+| no cache | 29.0 (29.6 in the lab_run matrix) | - |
+| upstream 1024 / 1536 / 2048 MiB | 25.6 / 27.2 / 28.3 | 0.50 / 0.57 / 0.62 |
+| hybrid 1024 / 1536 / 2048 MiB | 28.1 / 28.8 / **29.7** | 0.45 / 0.51 / 0.56 |
+
+At 2048 MiB the cache holds 12% of the experts. The load log (`hyb2048-groups.log`) shows **12 layout groups** as expected, from 1 layer / 20 slots (8.3%) to 7 layers / 201 slots (12.0%). The hybrid ties no cache (+2%, inside noise) and upstream loses 2-12%. Neither cache helps here: there is not enough VRAM left for a hit rate that pays. Threads (`llama-bench` tg128, experts on CPU): 4 → 21.1, 6 → 26.5, 8 → 29.8, 12 → 25.4, 16 → 28.6.
+
+KLD at 2048 MiB: upstream 0.00144 ± 0.00010, hybrid 0.00161 ± 0.00020. That is **12% above upstream**, slightly over the 10% bar. The error bars overlap and Sage on the same build shows the hybrid lower than upstream, but per the stop rule it is reported as is: the KLD bar is not met cleanly for Bolt at 2048 MiB on this run. E3f had the hybrid lower on Bolt (0.0014 vs 0.0019 at 5120).
+
+**Step 3: why it lost on omarchy.** Two cheap checks on Sage, new base.
+
+Threads, hyb5120, 3 interleaved repeats: `-t 4` 64.2, `-t 6` 64.8, `-t 8` 63.4 tok/s decode (prefill 84 / 102 / 110). Threads don't matter for the hybrid's decode here, as in E4.1. So omarchy's `-t 6` default alone would not explain a 2x loss on a quiet machine, though it matters there because the containers compete for its 6 cores.
+
+Background copies vs CPU experts. No cache (all experts on the CPU), with a second process loading the machine (`tools/h2d_stress.cu`, built with `nvcc -O2`):
+
+| load in a second process | decode tok/s | vs quiet |
+|---|---|---|
+| none (3 runs) | 48.6 | - |
+| host-to-device copies, 64 MiB each, 14.2 GB/s (3 runs) | 20.3 | -58% |
+| host-to-device copies, 1 MiB each, 13.4 GB/s (1 run) | 39.9 | -18% |
+| RAM-to-RAM `memcpy` on one core, about 35 GB/s read+write, no PCIe (2 runs) | 38.4 | -21% |
+
+So the answer to "do RAM-to-VRAM copies slow the CPU experts that read the same RAM?" is **yes, but mostly not through RAM bandwidth.** A pure RAM hog moving more than twice the bytes costs 21%. The same PCIe traffic in 64 MiB copies costs 58%, and in 1 MiB copies only 18%. The big effect is queueing on the host-to-device link and copy engine: the per-layer activation copies of the no-cache graph (the hops) wait behind the large transfers. That is trap (b) of E3d seen from the other side. The hybrid's own uploader, about 3.7 GB/s at hyb5120 in 64 KiB chunks with one in flight, is far below either load. The stress tool also runs in its own CUDA context, so this is an upper bound on what the in-process uploader can do.
+
+What this says about omarchy (not measured there): its loss is the machine. Its PCIe 3.0 x16 link uploads about as fast as this box while its CPU experts cost 3-4x more, so the break-even rule from E3e says upstream should win. The extra loss below the timeline (21 vs 36 tok/s predicted on Bolt) and the 2x spread fit the noisy, shared CPU. RAM-bandwidth contention from uploads exists but is a 20% effect at most.
+
 ### E4.1 — overlapping the CPU and GPU halves: no gain (2026-10-21, 7800X3D)
 
 In decode each hybrid layer has three scheduler splits: CUDA (slot-map lookup, where the copy callback synchronizes to read the selected experts, then the GPU experts), CPU (its only input is `attn_post_norm`, 8 KiB, and it runs up/gate/down of the CPU experts) and CUDA (multiply by the router weights, add). The CPU split copies its input with `ggml_backend_synchronize(CUDA)`, so it waits for the GPU experts that were just queued. A scheduler change (env `GGML_SCHED_INPUT_EVENTS=1`) recorded an event after every split and waited only for the event of the split that produced the input. It works, but `tools/bench_decode.sh`, 3 interleaved repeats, shows no gain:

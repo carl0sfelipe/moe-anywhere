@@ -43,37 +43,18 @@ After that:
 3. Submit results to bestmodel.run. This needs an agent token: `POST /v1/auth/tokens` with the console session in localStorage `bm_token`, then `benchmark-probe login --token ...` typed by the owner. Never paste tokens in chat, and upload only with the owner's OK.
 4. DeepSeek-V4.1-Flash on the 8x3090 cluster (docs in the private repo carl0sfelipe/rig3d): re-measure the cost model there, since PCIe 3.0 risers change the balance.
 
-## Next task (2026-10-22): settle the rebase on the 7800X3D, then the PR evidence
+## Done (2026-10-22): rebase settled on the 7800X3D (E3g)
 
-If you are an agent on `omarchy-white` (Ryzen 7 7800X3D, DDR5, RTX 5050 8 GB) or any other NVIDIA machine, this is your task. The owner wants it done end to end without further prompts: run, write up, commit and push. Report to the owner in Portuguese at the end.
+- **Machine or rebase:** same-day A/B on `omarchy-white`. hyb5120 gave 62.8 tok/s on 36cbf415f and 63.0 on 0a1ef30, and upstream and no cache were identical. The rebase did not regress. E3f's 2x loss is the `omarchy` machine. No bisect was needed.
+- **Bolt on 8 GB:** 3072/5120 MiB don't fit. At 2048 MiB (12 layout groups, 12% of experts) the hybrid ties no cache (29.7 vs 29.0) and upstream loses (28.3). **KLD at 2048 is 12% above upstream** (0.00161 ± 0.0002 vs 0.00144 ± 0.0001): error bars overlap, but it is over the 10% bar. Re-measure with more chunks before the PR.
+- **Contention:** threads don't matter for hyb5120 (t4/6/8: 64.2/64.8/63.4). A second process doing 64 MiB host-to-device copies cuts no-cache decode by 58%, 1 MiB copies by 18%, and a RAM-only memcpy by 21%. So uploads hurt CPU experts mostly by queueing on the link/copy engine, not through RAM bandwidth. Tool: `tools/h2d_stress.cu`.
+- Trees: `~/src/llama.cpp-moe` (36cbf415f; the old `moe-anywhere/overlap` work is in `git stash`, the E4.1 scheduler change) and the worktree `~/src/llama.cpp-moe-old` (0a1ef30). Both `build/` dirs hold patched binaries. The source trees are reset to the clean base after `lab_run.sh`.
 
-### Why
+## Next task
 
-E3f ran the rebased patch (`patches/llama.cpp-36cbf415f-moe-cache-hybrid.patch`) on `omarchy` (RTX 3090, Ryzen 5 3500X, DDR4, PCIe 3.0 x16). It builds with CUDA and the KLD matches upstream on Sage-A1.5 and on Nemotron 3.5 Bolt, but **the hybrid was about 2x slower than upstream there and unstable** (Sage hyb5120 32.5 vs up5120 68.6 tok/s). Nobody knows yet whether that is the machine or the rebase. On this desktop the old base gave hyb5120 61.5 / up5120 56.7 / nocache 48.4 (E3e). Read E3f in `research/experiments.md` and `research/nemotron-bolt.md` before starting.
-
-### Setup (once)
-
-- `git pull` in moe-anywhere. CUDA: `export PATH=/opt/cuda/bin:$PATH`. `hf`: `~/.venvs/hf/bin/hf` (or `pip install -U huggingface_hub` in a venv).
-- `ulimit -c 0` before every llama.cpp run.
-- Memory: about 30 GB RAM. Build with `JOBS=4` (6 CUDA jobs got OOM-killed on a 31 GB box). Run heavy jobs inside a capped scope so an OOM kills only them and not your own session, which happened on omarchy: `systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 <command>`. Never load a model whose experts don't fit in RAM with `--load-mode none` (pinned).
-- Models: Sage-A1.5 should already be in `~/models/Sage-A1.5/` (lab_run downloads it if missing). Bolt: `hf download nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-GGUF NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf --local-dir ~/models/Nemotron-3.5-Bolt` (22 GB).
-- Two llama.cpp trees so neither build is lost: `~/src/llama.cpp-moe` (new base, lab_run clones it if missing) and a worktree for the old base: `git -C ~/src/llama.cpp-moe fetch origin 0a1ef309cdbb9f2024f58a38fb4c42352c5db569 && git -C ~/src/llama.cpp-moe worktree add -f ~/src/llama.cpp-moe-old 0a1ef309cdbb9f2024f58a38fb4c42352c5db569`. A plain `git clone` of llama.cpp is slow (several minutes); a shallow fetch by full SHA is much faster, short SHAs don't work with `--depth 1`.
-- `tools/bench_decode.sh` saves failed-run logs in the results folder. Read them if any config "failed".
-
-### Steps
-
-1. **Machine or rebase?** Same day, interleaved as much as practical:
-   - `KLD=1 JOBS=4 bash tools/lab_run.sh` (36cbf415f, Sage)
-   - `JOBS=4 LLAMA_BASE=0a1ef30 LLAMA_DIR=~/src/llama.cpp-moe-old bash tools/lab_run.sh` (0a1ef30, Sage)
-   - Verdict: if new hyb5120 is within 5-10% of old hyb5120, the rebase is fine and omarchy's loss is the machine. If lower, bisect the 28 commits between 0a1ef30 and 36cbf415f (rebase the patch at the midpoint, `tools/bench_decode.sh` with hyb5120 and up5120, 3 repeats) and name the commit. Do not try to fix it; report.
-2. **Second architecture.** `KLD=1 JOBS=4 MODEL=~/models/Nemotron-3.5-Bolt/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf bash tools/lab_run.sh`. On 8 GB about 4.2 GB is non-expert weights, so the 5120 configs may not load; if they fail, rerun `tools/bench_decode.sh` by hand with 1024/1536/2048 MiB. Record the cache group lines from a `-lv 4` log (expect 12 groups).
-3. **Why it lost on omarchy** (one cheap check each, no tuning): hyb5120 on Sage with `-t 4`, `-t 6`, `-t 8`; and CPU expert cost with background uploads off vs on (no-cache tok/s while a second process does host-to-device copies, or the uploader paused if there is a switch). This answers the open question "do RAM-to-VRAM copies slow the CPU experts that read the same RAM?".
-4. Write **E3g** in `research/experiments.md` (machine, base commits, tables for steps 1-3, verdict), update "Estado do patch" in `notes/upstream-llama-cpp.md`, update this section to say what is done and what is next, run `python -m pytest -q` and `python tests/check_docs.py`, commit (author `carl0sfelipe <carlosfelipe2050@gmail.com>`, `Co-Authored-By: Claude` trailer) and push to moe-anywhere.
-
-### Stop rules
-
-- If the hybrid is slower or its KLD is more than about 10% above upstream's, say so plainly in E3g and stop. Do not tune to get a number back.
-- If a build fails on 36cbf415f, make the smallest fix that blends with upstream, regenerate the patch with `git format-patch -1 --stdout`, and explain it here.
+1. Bolt KLD with more data (`--chunks 16` or more) at 1024 and 2048 MiB, hybrid vs upstream, to settle whether the +12% is real. If it holds above 10%, say so and look for the cause (ungated up-only branch, IQ2_XXS CPU vs GPU kernels) without tuning.
+2. Prototype the fallback guard (CPU cost per expert vs upload cost per expert) in `moe_anywhere/timeline.py`, replaying the omarchy (E3f) and omarchy-white (E3e/E3g) costs: the guard must choose upstream on omarchy and the hybrid here.
+3. Then the follow-ups listed above (multi-token hybrid ubatches, bestmodel.run submission with the owner's OK, the 8x3090 cluster).
 
 ### What the PR will need (the owner writes and posts it)
 

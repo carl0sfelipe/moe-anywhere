@@ -1,0 +1,9 @@
+quiet	nocache	1	48.90	110.10	8192	-	-
+h2d	nocache	1	20.29	83.92	8192	-	-
+quiet	nocache	1	47.74	92.56	8192	-	-
+h2d	nocache	1	20.27	83.53	8192	-	-
+quiet	nocache	1	49.11	112.45	8192	-	-
+h2d	nocache	1	20.29	86.56	8192	-	-
+h2d-1MiB	nocache	1	39.91	103.55	8192	-	-
+memhog	nocache	1	38.13	84.12	8192	-	-
+memhog	nocache	1	38.72	75.11	8192	-	-

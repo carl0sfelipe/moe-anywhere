@@ -1,0 +1,17 @@
+date: 2026-10-22T15:38:22-03:00
+kernel: 7.2.8-9-omarchy
+CPU(s):                                  16
+Model name:                              AMD Ryzen 7 7800X3D 8-Core Processor
+Thread(s) per core:                      2
+Core(s) per socket:                      8
+Socket(s):                               1
+CPU(s) scaling MHz:                      81%
+CPU max MHz:                             5053.3770
+CPU min MHz:                             426.1890
+               total        used        free      shared  buff/cache   available
+Mem:              30           5          23           0           2          24
+(dmidecode needs sudo: run 'sudo dmidecode -t memory' for RAM speed)
+name, driver_version, memory.total [MiB], pcie.link.gen.max, pcie.link.width.max, compute_cap
+NVIDIA GeForce RTX 5050, 615.78.08, 8151 MiB, 4, 8, 12.0
+base: 36cbf415f
+model: /home/carl0sfelipe/models/Sage-A1.5/Sage-A1.5-Q4_K_M.gguf

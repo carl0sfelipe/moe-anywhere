@@ -1,0 +1,2 @@
+--moe-cache-mib 2048: Mean    KLD:   0.001441 ±   0.000104
+--moe-cache-mib 2048 --moe-cache-hybrid: Mean    KLD:   0.001608 ±   0.000196

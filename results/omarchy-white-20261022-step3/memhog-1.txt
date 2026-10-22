@@ -1,0 +1,4 @@
+36.99 GB/s (read+write)
+33.20 GB/s (read+write)
+20.64 GB/s (read+write)
+22.32 GB/s (read+write)
