@@ -43,6 +43,18 @@ After that:
 3. Submit results to bestmodel.run. This needs an agent token: `POST /v1/auth/tokens` with the console session in localStorage `bm_token`, then `benchmark-probe login --token ...` typed by the owner. Never paste tokens in chat, and upload only with the owner's OK.
 4. DeepSeek-V4.1-Flash on the 8x3090 cluster (docs in the private repo carl0sfelipe/rig3d): re-measure the cost model there, since PCIe 3.0 risers change the balance.
 
+## Rebased on master (2026-10-22)
+
+`patches/llama.cpp-36cbf415f-moe-cache-hybrid.patch` is the patch rebased on llama.cpp master 36cbf415f. Only CPU builds were checked; it has no CUDA build or bench yet. The plan for upstream is in `notes/upstream-llama-cpp.md`. On the CUDA machine:
+
+```
+git clone https://github.com/ggml-org/llama.cpp && cd llama.cpp && git checkout -b moe-anywhere/hybrid 36cbf415f
+git am ../moe-anywhere/patches/llama.cpp-36cbf415f-moe-cache-hybrid.patch
+cmake -B build -DGGML_CUDA=ON && cmake --build build -j
+```
+
+Then rerun `tools/lab_run.sh` (bench + KLD) and compare it with E3d/E3e before posting anything upstream.
+
 ## Working agreements with the owner
 
 - Talk in Portuguese. Commits use `carl0sfelipe <carlosfelipe2050@gmail.com>` with a `Co-Authored-By: Claude` trailer.
