@@ -102,31 +102,40 @@ class SLRU:
 
 
 def expert_bytes(gguf_path):
-    """{layer: bytes of one routed expert (gate + up + down)} for layers that have routed experts."""
+    """{layer: (bytes of one routed expert (gate + up + down), routed experts in that layer)}."""
     from moe_anywhere.pregate import LLAMA_GGUF_PY
     import sys
 
     sys.path.insert(0, LLAMA_GGUF_PY)
     from gguf import GGUFReader
 
-    out = defaultdict(int)
+    out = {}
     for t in GGUFReader(gguf_path).tensors:
         if t.name.endswith(("ffn_gate_exps.weight", "ffn_up_exps.weight", "ffn_down_exps.weight",
                             "ffn_gate_up_exps.weight")):
-            out[int(t.name.split(".")[1])] += int(t.n_bytes) // int(t.shape[-1])
-    return dict(out)
+            l = int(t.name.split(".")[1])
+            b, _ = out.get(l, (0, int(t.shape[-1])))
+            out[l] = (b + int(t.n_bytes) // int(t.shape[-1]), int(t.shape[-1]))
+    return out
 
 
-def slot_counts(layer_bytes, layers, cache_mib):
-    """Upstream sizing: groups of equal expert size; the budget is split by host bytes, minus a padding slot."""
+def slot_counts(layer_bytes, layers, cache_mib, n_expert):
+    """Upstream sizing: groups of equal expert size; the budget is split by host bytes, minus a padding slot.
+
+    n_expert is the routed experts of each layer: an int for uniform models (Sage-A1.5's 256) or
+    {layer: count} for heterogeneous ones (Bolt mixes 240-496, so host bytes and the slot cap differ
+    per layer even inside one size group).
+    """
+    if isinstance(n_expert, int):
+        n_expert = {l: n_expert for l in layers}
     groups = defaultdict(list)
     for l in layers:
         groups[layer_bytes[l]].append(l)
-    n_expert = 256
-    host = {b: b * n_expert * len(ls) for b, ls in groups.items()}
+    host = {b: sum(b * n_expert[l] for l in ls) for b, ls in groups.items()}
     total = sum(host.values())
     budget = cache_mib * 1024 * 1024
-    return {b: (ls, max(0, min(int(budget * host[b] / total) // b - 1, n_expert * len(ls)))) for b, ls in groups.items()}
+    cap = {b: sum(n_expert[l] for l in ls) for b, ls in groups.items()}
+    return {b: (ls, max(0, min(int(budget * host[b] / total) // b - 1, cap[b]))) for b, ls in groups.items()}
 
 
 def read_steps(tsv_path):
@@ -163,17 +172,18 @@ def predictions(routers, hidden, layers, horizon, budget):
     return out
 
 
-def run(steps, layer_bytes, layers, cache_mib, preds=None, horizon=1, budget=0, wait="needed",
+def run(steps, layer_bytes, layers, cache_mib, n_expert, preds=None, horizon=1, budget=0, wait="needed",
         t_fixed=T_FIXED_MS, ms_per_mib=MS_PER_MIB, t_head=T_HEAD_MS, attn_fraction=ATTN_FRACTION,
         miss_path="upload", admit_misses=True, t_cpu_expert=T_CPU_EXPERT_MS, t_hop=T_HOP_MS,
         max_backlog_ms=MAX_BACKLOG_MS):
     """Replay the trace; returns decode stats.
 
+    n_expert: routed experts per layer, an int for uniform models or {layer: count} (Bolt mixes 240-496).
     wait (upload path): 'needed' waits only for the prefetched experts a layer uses (per-copy events),
     'all' makes the host sync the copy stream at every sync point.
     Background copies (prefetch, admitted misses) are skipped while link - t > max_backlog_ms.
     """
-    groups = slot_counts(layer_bytes, layers, cache_mib)
+    groups = slot_counts(layer_bytes, layers, cache_mib, n_expert)
     caches, group_of = {}, {}
     for b, (ls, n_slots) in groups.items():
         cache = SLRU(n_slots) if n_slots >= 8 else None
@@ -203,7 +213,11 @@ def run(steps, layer_bytes, layers, cache_mib, preds=None, horizon=1, budget=0, 
             ids = by_layer[l]
             if cache is None:
                 misses += len(set(ids))
-                t += (1 - attn_fraction) * t_layer + len(set(ids)) * copy_ms[l]
+                if miss_path == "cpu":
+                    # no slots for this group: in the hybrid every expert of the layer is a CPU miss
+                    t += (1 - attn_fraction) * t_layer + t_hop + len(set(ids)) * t_cpu_expert
+                else:
+                    t += (1 - attn_fraction) * t_layer + len(set(ids)) * copy_ms[l]
                 continue
             keep = {(l, e) for e in ids}
             if miss_path == "cpu":
@@ -253,6 +267,30 @@ def run(steps, layer_bytes, layers, cache_mib, preds=None, horizon=1, budget=0, 
     }
 
 
+def choose_path(n_layers, cpu_misses, upload_misses, expert_mib, t_hop=T_HOP_MS,
+                t_cpu_expert=T_CPU_EXPERT_MS, ms_per_mib=MS_PER_MIB, margin=0.10):
+    """The fallback guard: which miss path wins on this machine, "cpu" (hybrid) or "upload" (upstream)?
+
+    Two costs per decoded token, on top of the same all-resident base:
+      hybrid   n_layers * t_hop — the CPU chain's fixed round trip, paid in every MoE layer —
+               plus t_cpu_expert for each miss that runs on the CPU;
+      upstream expert_mib * ms_per_mib for each miss, uploaded while its layer waits; nothing fixed.
+    The one-expert rule in HANDOFF.md ("CPU cost per expert vs upload cost per expert") is the special
+    case of a single miss with the fixed cost dropped: it mis-picks when misses are few and uploads are
+    cheap (omarchy + Sage, E4.3: it says hybrid, measured upstream is 2.1x ahead). The miss counts are
+    per path because the two paths admit misses into the cache differently (upstream synchronously, the
+    hybrid in the background), so one cache size hits at different rates on each (E3g); expert_mib is
+    the miss-weighted mean expert size when a model has more than one expert layout.
+    The hybrid must win by more than margin, not merely win: timeline replays run 2-5% optimistic for
+    it (E3d/E3e), the machine noise bar is 5-10%, and the payoff is asymmetric — a wrong "cpu" cost
+    2.1-2.4x on omarchy (E3f) while a right one gains 8-50% (E3e/E3g). Everything else, ties included,
+    stays on "upload", the path llama.cpp already has. margin=0 gives the raw comparison.
+    """
+    t_hybrid = n_layers * t_hop + cpu_misses * t_cpu_expert
+    t_upload = upload_misses * expert_mib * ms_per_mib
+    return "cpu" if t_hybrid < (1.0 - margin) * t_upload else "upload"
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("gguf")
@@ -268,7 +306,9 @@ def main(argv=None):
     ap.add_argument("--max-backlog-ms", type=float, default=MAX_BACKLOG_MS)
     args = ap.parse_args(argv)
 
-    layer_bytes = expert_bytes(args.gguf)
+    eb = expert_bytes(args.gguf)
+    layer_bytes = {l: b for l, (b, _) in eb.items()}
+    n_expert = {l: n for l, (_, n) in eb.items()}
     steps = read_steps(args.tsv)
     traced = {l for _, _, _, by_layer in steps for l in by_layer}
     layers = sorted(l for l in layer_bytes if l in traced)  # the GGUF also has MTP layers that never route
@@ -279,9 +319,9 @@ def main(argv=None):
 
         preds = predictions(load_routers(args.gguf), read_hidden(args.hidden), layers, args.horizon, max(budgets))
     for cache_mib in (int(c) for c in args.cache_mib.split(",")):
-        slots = {b: n for b, (_, n) in slot_counts(layer_bytes, layers, cache_mib).items()}
+        slots = {b: n for b, (_, n) in slot_counts(layer_bytes, layers, cache_mib, n_expert).items()}
         for budget in budgets:
-            r = run(steps, layer_bytes, layers, cache_mib, preds, args.horizon, budget, args.wait,
+            r = run(steps, layer_bytes, layers, cache_mib, n_expert, preds, args.horizon, budget, args.wait,
                     ms_per_mib=args.ms_per_mib, miss_path=args.miss_path, admit_misses=not args.no_admit_misses,
                     max_backlog_ms=args.max_backlog_ms)
             print(f"{args.miss_path:<6} cache={cache_mib:<5} slots={sorted(slots.values())} budget={budget:<3} h={args.horizon} "

@@ -53,7 +53,7 @@ After that:
 ## Next task
 
 1. ~~Bolt KLD with more data (`--chunks 16` or more) at 1024 and 2048 MiB, hybrid vs upstream, to settle whether the +12% is real.~~ **Done, E3h.** At 4096 tokens the delta is -0.7% / +2.0% / +2.6% for 1024 / 2048 / 5120 MiB, so the +12% was sampling noise and the 10% bar holds. `tools/modal/kld.py` reruns it on a rented GPU; the 20.5 GiB GGUF is cached in the `moe-anywhere-models` Modal Volume.
-2. Prototype the fallback guard (CPU cost per expert vs upload cost per expert) in `moe_anywhere/timeline.py`, replaying the omarchy (E3f) and omarchy-white (E3e/E3g) costs: the guard must choose upstream on omarchy and the hybrid here.
+2. ~~Prototype the fallback guard (CPU cost per expert vs upload cost per expert) in `moe_anywhere/timeline.py`.~~ **Done, E4.3.** `choose_path()`: the hybrid pays `n_layers x t_hop + misses x t_cpu_expert`, upstream pays `misses x expert_mib x ms_per_mib`, and the hybrid must win by 10%. It reproduces the measured winner on all 7 measured machine x model x cache rows (the one-expert rule gets 5 of 7; it mis-picks omarchy + Sage both times). `tools/guard_table.py` prints the table with no GPU or trace. `slot_counts()` now takes per-layer expert counts (Bolt's 240-496).
 3. Then the follow-ups listed above (multi-token hybrid ubatches, bestmodel.run submission with the owner's OK, the 8x3090 cluster).
 
 ### What the PR will need (the owner writes and posts it)
@@ -62,7 +62,7 @@ After that:
 - Numbers on at least two machines and two architectures, **including the loss on omarchy**. Honest framing: the hybrid wins when the CPU expert path is cheaper than PCIe uploads and loses otherwise (break-even rule in E3e). A maintainer will ask when it should be on by default; the answer is a rule, not "always".
 - KLD within 10% of upstream on every run (met so far).
 - Known limits: single-token ubatches only, one GPU, CUDA only, intermittent failure at 2048 MiB not yet explained.
-- Ideally a guard that falls back to the upstream path when CPU cost per expert exceeds upload cost per expert (idea 1 in `research/nemotron-bolt.md`). Prototype it in `moe_anywhere/timeline.py` first.
+- A guard that falls back to the upstream path when the hybrid would lose (idea 1 in `research/nemotron-bolt.md`). Prototyped in `moe_anywhere/timeline.py` as `choose_path()` (E4.3): two terms — the CPU chain's fixed cost plus misses x CPU cost against misses x upload cost — with a 10% margin for the hybrid; it reproduces all 7 measured rows (without the margin, omarchy + Sage at 2048 MiB comes out wrong). The C++ version still needs an online miss-rate (or hit-rate) estimate; per-expert costs calibrated on a quiet machine are why the measured hybrid on omarchy runs below every replay.
 - Credit PR #27861 (same design) and coordinate there before opening a new PR.
 
 ### Hard limits
