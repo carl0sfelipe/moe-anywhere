@@ -336,3 +336,21 @@ The CPU half is not limited by threads either. At 5120 MiB, 2 interleaved repeat
 So both reports are right in their own regime. Upstream only serves ubatches of 32 tokens or fewer through the cache, so a short prompt pays synchronous uploads (2.4x slower here). A long prompt takes the old offload path and only copies already-cached experts device-to-device (+3% here; sampop3 saw 150 to 382 tok/s on a 4-vCPU T4 with `--cpu-moe`, where the CPU is much weaker). A bypass for short prefill ubatches would remove the regression. Also, at 5120 MiB a 1,500-token prompt crashes both cache modes on this 8 GB card (`CUDA error: the resource allocation failed` in cuBLAS) because `-fit off` leaves no room for the large-batch compute buffers. The cache size must leave headroom for the prefill ubatch, which matters for any config recommender.
 
 **Layers with no misses.** Replaying `e3-bench.tsv` through the SLRU with instant fills (optimistic, since the simulated hit rate runs about 0.05 above measured), the share of decode layers whose experts are all resident is 5% at 2048 MiB, 12% at 3072, 30% at 5120 and 39% at 6144. Skipping the CPU chain on those layers would save at most 0.09 ms × 40 × 0.30 ≈ 1.1 ms per token at 5120 MiB, about +7%, and 1-2% at 2 GB. That is worth doing only together with other split removals.
+
+### E3h — Bolt KLD with 4096 tokens: the +12% was noise (2026-10-23, Modal L4)
+
+The open question from E3g was whether the hybrid's KLD on Bolt at 2048 MiB is really 12% above upstream, or sampling noise from 1024 tokens. `tools/modal/kld.py` reran the KLD block of `tools/lab_run.sh` on a rented Modal L4 (sm_89, PCIe Gen3 x16, 8 cores, 339 GiB RAM) with `--chunks 16` = 4096 tokens, same corpus, same base, three cache sizes. Results in `results/modal-l4-20261023-1307/`.
+
+| cache | upstream | hybrid | delta |
+|---|---|---|---|
+| 1024 MiB | 0.001537 ± 0.000093 | 0.001527 ± 0.000108 | **-0.7%** |
+| 2048 MiB | 0.001537 ± 0.000093 | 0.001567 ± 0.000092 | **+2.0%** |
+| 5120 MiB | 0.001537 ± 0.000093 | 0.001577 ± 0.000091 | **+2.6%** |
+
+**The +11.6% does not hold.** With four times the corpus the delta collapses to within ±3% at every cache size, well inside the 10% bar, and the sign is not even consistent (1024 is negative). The upstream figure is identical for all three sizes (0.001537) because the base is cache-independent, so the three rows share one upstream measurement; only the hybrid moves. The standard error is roughly the same as before (0.00009 vs 0.0001), so the improvement is not from tighter error bars but from the larger corpus — the estimate itself moved. That is what sampling noise looks like: E3g's 0.001608 was a high draw.
+
+Two limits on what this proves. It is one machine and one GPU, and the L4 runs the experts on CPU exactly like the 5050, so the numeric path is the same; but a KLD is only ever measured, never predicted. And 4096 tokens is still a small corpus — the honest statement is "the deviation is under 3% at 4096 tokens," not "the deviation is exactly 2%."
+
+Decode tok/s from that run is deliberately not recorded: the L4 exposes PCIe Gen3 x16 (~12.3 GB/s pinned host-to-device, measured) against ~10 GB/s on the 5050 at Gen4 x8, and the model runs with `-ot exps=CPU`, so the CPU expert path, not the link, sets the pace. A tok/s number from there would not be another machine for the PR.
+
+Cost: $1.02 for the full matrix (7 invocations, 24 minutes), plus $0.53 for the image build (CUDA 12.9 devel, one arch, ~13 min) and model download. The 20.5 GiB GGUF now lives in the `moe-anywhere-models` Volume, so reruns skip the download.

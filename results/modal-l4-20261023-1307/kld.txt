@@ -1,0 +1,10 @@
+# Modal L4 (sm_89, PCIe Gen3 x16), llama.cpp 36cbf415f + moe-cache-hybrid patch
+# NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf (20.50 GiB), -c 256, -b 256, -ub 1
+# corpus: docs/build.md + docs/function-calling.md (67435 bytes), 4096 tokens
+# base: -ngl 99 -ot exps=CPU -fit off --load-mode none (experts on CPU, no cache)
+--moe-cache-mib 1024:                     Mean KLD 0.001537 +- 0.000093   (upstream)
+--moe-cache-mib 1024 --moe-cache-hybrid:  Mean KLD 0.001527 +- 0.000108   (hybrid)  -0.7%
+--moe-cache-mib 2048:                     Mean KLD 0.001537 +- 0.000093   (upstream)
+--moe-cache-mib 2048 --moe-cache-hybrid:  Mean KLD 0.001567 +- 0.000092   (hybrid)  +2.0%
+--moe-cache-mib 5120:                     Mean KLD 0.001537 +- 0.000093   (upstream)
+--moe-cache-mib 5120 --moe-cache-hybrid:  Mean KLD 0.001577 +- 0.000091   (hybrid)  +2.6%

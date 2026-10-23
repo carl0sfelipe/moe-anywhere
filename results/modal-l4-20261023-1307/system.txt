@@ -1,0 +1,11 @@
+date: 2026-10-23T16:07 -03
+host: Modal container (ephemeral, no hostname persistence)
+base: 36cbf415f
+model: nvidia/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB-GGUF / NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf
+gpu: NVIDIA L4, 23034 MiB, pcie.link.gen.max 3, pcie.link.width.max 16, compute_cap 8.9
+cpu: 8 cores
+ram: 339 GiB (container sees host memory)
+disk: ephemeral overlay
+note: KLD only. Decode tok/s is NOT comparable - L4 exposes PCIe Gen3 x16 (~12.3 GB/s
+      pinned H2D) against ~10 GB/s on the RTX 5050 at Gen4 x8, and the model runs with
+      -ot exps=CPU so the CPU expert path dominates. Do not quote as another machine.

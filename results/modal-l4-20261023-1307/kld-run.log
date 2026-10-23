@@ -1,0 +1,87 @@
+✓ Initialized. View run at 
+https://modal.com/apps/carl0sfelipe/main/ap-crneJXFSTMC0aWoadwi7gc
+✓ Created objects.
+├── 🔨 Created mount 
+│   /home/beelink/.config/AutoClaw-oversea-official/accounts/c35bac21d638e68d975
+│   f1582985496159ece76706f72cd8b17cf94262ce28e71/projects/Default/moe-anywhere/
+│   tools/modal/kld.py
+├── 🔨 Created mount 
+│   /home/beelink/.config/AutoClaw-oversea-official/accounts/c35bac21d638e68d975
+│   f1582985496159ece76706f72cd8b17cf94262ce28e71/projects/Default/moe-anywhere/
+│   patches/llama.cpp-36cbf415f-moe-cache-hybrid.patch
+├── 🔨 Created function download_model.
+└── 🔨 Created function kld.
+chunks=16 (4096 tokens) caches=(1024, 2048, 5120)
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.9.0
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+WARNING: The NVIDIA Driver was not detected.  GPU functionality will not be available.
+   Use the NVIDIA Container Toolkit to start this container with GPU support; see
+   https://docs.nvidia.com/datacenter/cloud-native/ .
+
+download: {'skipped': True, 'bytes': 22018326528}  [4s]
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.9.0
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+[sysinfo] ok in 0.1s
+8
+               total        used        free      shared  buff/cache   available
+Mem:             339           0         339           0           0         339
+none            8.0E  4.6M  8.0E   1% /
+none            8.0E  4.6M  8.0E   1% /
+name, memory.total [MiB], pcie.link.gen.max, pcie.link.width.max, compute_cap
+NVIDIA L4, 23034 MiB, 3, 16, 8.9
+
+corpus: 67435 bytes
+[base] ok in 456.1s
+[upstream-1024] ok in 208.0s
+KLD upstream-1024: Mean    KLD:   0.001537 ±   0.000093
+[hybrid-1024] ok in 350.3s
+KLD hybrid-1024: Mean    KLD:   0.001527 ±   0.000108
+[upstream-2048] ok in 190.3s
+KLD upstream-2048: Mean    KLD:   0.001537 ±   0.000093
+[hybrid-2048] ok in 292.0s
+KLD hybrid-2048: Mean    KLD:   0.001567 ±   0.000092
+[upstream-5120] ok in 157.5s
+KLD upstream-5120: Mean    KLD:   0.001537 ±   0.000093
+
+gpu step wall time: 1901s
+
+== result ==
+upstream-1024: {'kld_line': 'Mean    KLD:   0.001537 ±   0.000093', 'seconds': 208.0}
+hybrid-1024: {'kld_line': 'Mean    KLD:   0.001527 ±   0.000108', 'seconds': 350.3}
+upstream-2048: {'kld_line': 'Mean    KLD:   0.001537 ±   0.000093', 'seconds': 190.3}
+hybrid-2048: {'kld_line': 'Mean    KLD:   0.001567 ±   0.000092', 'seconds': 292.0}
+upstream-5120: {'kld_line': 'Mean    KLD:   0.001537 ±   0.000093', 'seconds': 157.5}
+hybrid-5120: {'kld_line': 'Mean    KLD:   0.001577 ±   0.000091', 'seconds': 239.0}
+gpu: NVIDIA L4, 23034 MiB, 3, 16, 8.9
+step seconds (sum): 1437.1
+[hybrid-5120] ok in 239.0s
+KLD hybrid-5120: Mean    KLD:   0.001577 ±   0.000091
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/carl0sfelipe/main/ap-crneJXFSTMC0aWoadwi7gc

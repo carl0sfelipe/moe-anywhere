@@ -52,7 +52,7 @@ After that:
 
 ## Next task
 
-1. Bolt KLD with more data (`--chunks 16` or more) at 1024 and 2048 MiB, hybrid vs upstream, to settle whether the +12% is real. If it holds above 10%, say so and look for the cause (ungated up-only branch, IQ2_XXS CPU vs GPU kernels) without tuning.
+1. ~~Bolt KLD with more data (`--chunks 16` or more) at 1024 and 2048 MiB, hybrid vs upstream, to settle whether the +12% is real.~~ **Done, E3h.** At 4096 tokens the delta is -0.7% / +2.0% / +2.6% for 1024 / 2048 / 5120 MiB, so the +12% was sampling noise and the 10% bar holds. `tools/modal/kld.py` reruns it on a rented GPU; the 20.5 GiB GGUF is cached in the `moe-anywhere-models` Modal Volume.
 2. Prototype the fallback guard (CPU cost per expert vs upload cost per expert) in `moe_anywhere/timeline.py`, replaying the omarchy (E3f) and omarchy-white (E3e/E3g) costs: the guard must choose upstream on omarchy and the hybrid here.
 3. Then the follow-ups listed above (multi-token hybrid ubatches, bestmodel.run submission with the owner's OK, the 8x3090 cluster).
 
